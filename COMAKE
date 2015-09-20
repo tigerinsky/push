@@ -1,0 +1,39 @@
+#edit-mode: -*- python -*-
+#coding:utf8
+
+#google code generator, 如果源码里面有proto文件则需要指定
+PROTOC('../protobuf/bin/protoc')
+
+#thrift code generator, 如果源码里面有thrift文件则需要指定
+THRIFT('../thrift/bin/thrift')
+
+#编译器
+CXX('g++')
+
+#g++参数
+CXXFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -g -pipe -W -Wall -fPIC -fno-omit-frame-pointer -std=c++11')
+
+#链接参数
+LDFLAGS('-ldl -lpthread -lm -lrt')
+
+#设置额外的include path，默认为./和每个模块的xx/include, xxx/output/include
+INCLUDE(GLOB('./'))
+
+#指定编译额外依赖的静态库路径
+DEP_LIB(GLOB('./lib/*.a'))
+
+#指定依赖的模块
+DEP('gflags', '1.0.0')
+DEP('protobuf_old', '1.0.0')
+DEP('glog', '1.0.0')
+
+
+sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp')
+#需要产出的bin, 产出目录./output/bin/
+APP('seiya', sources)
+#传出的静态库, 产出目录./output/lib ./output/include
+#STATIC_LIB('liba.a', sources, headers)
+
+#指定output目录
+OUTPUT('output')
+
