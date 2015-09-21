@@ -8,8 +8,8 @@ namespace im {
 
 class ConnectHandler : public BaseHandler {
 public:
-    ConnectHandler();
-    virtual ~ConnectHandler();
+    ConnectHandler() {}
+    virtual ~ConnectHandler() {}
 
 public:
     void handle(const char* input_msg, int input_size,

@@ -2,6 +2,7 @@
 #define PUSH_SERVER_H
 
 #include <unordered_map>
+#include <string>
 
 struct aeEventLoop;
 
@@ -25,13 +26,11 @@ typedef struct client_t {
     int req_size;
     char req_buf[kProtoIOBufLen];
     request_t request;
-    int resp_size;
-    char resp_buf[kProtoIOBufLen];
+    std::string response;
 
     client_t() {
         id = 0;
         fd = -1; 
-        resp_size = 0;
     }
 } client_t;
 

@@ -7,6 +7,7 @@
 #include "ae/ae.h"
 #include "ae/anet.h"
 #include "common.h"
+#include "service.h"
 
 namespace im {
 
@@ -25,6 +26,7 @@ void init_server() {
                       server_cron, 
                       NULL, 
                       NULL);
+    init_service();
 }
 
 static client_t* create_client() {
@@ -50,7 +52,7 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
     int ret = -1;
     int nwrite = 0;
     while (true) {
-        ret = write(fd, c->resp_buf + nwrite, c->resp_size - nwrite); 
+        ret = write(fd, c->response.c_str() + nwrite, c->response.size() - nwrite); 
         if (ret < 0) {
             if (EAGAIN == errno) {
                 return;  
@@ -61,40 +63,12 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
             }
         }
         nwrite += ret;
-        if (nwrite == c->resp_size) {
+        if (nwrite == c->response.size()) {
             break; 
         }
     }
-    c->resp_size = 0;
+    c->response.clear();
     aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
-}
-
-static int parse_request(const char* req_buf, int req_size, request_t* request) {
-    if (NULL == request) {
-        return 0; 
-    }
-#define READ_INT(p, value, left) do { \
-    if (left < sizeof(int)) return 1; \
-    *value = *((int*)p); \
-    p += sizeof(int); \
-    left -= sizeof(int); \
-} while (0);
-    int left = req_size;
-    char* p = const_cast<char*>(req_buf);
-    READ_INT(p, &(request->version), left);
-    request->method = p;
-    while (left && '\0' != *p) { 
-        ++p; 
-        --left;
-    }
-    if (*p != '\0') return 1;
-    ++p; 
-    READ_INT(p, &(request->req_proto_size), left);
-    if (left != request->req_proto_size) {
-        return 1;
-    }
-    request->req_proto = p; 
-    return 0;
 }
 
 static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
@@ -112,13 +86,11 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
         }
     }
     c->req_size = ret;
-    ret = parse_request(c->req_buf, c->req_size, &(c->request));
+    ret = service(c);
     if (0 != ret) {
         free_client(c); 
         return;
     }
-    memcpy(c->resp_buf, c->req_buf, ret);
-    c->resp_size = ret;
     if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
         free_client(c);
     }

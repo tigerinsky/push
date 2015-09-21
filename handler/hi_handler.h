@@ -8,8 +8,8 @@ namespace im {
 
 class HiHandler : public BaseHandler {
 public:
-    HiHandler();
-    virtual ~HiHandler();
+    HiHandler() {}
+    virtual ~HiHandler() {}
 
 public:
     void handle(const char* input_msg, int input_size,
