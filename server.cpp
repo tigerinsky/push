@@ -3,7 +3,6 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
-#include "glog/logging.h"
 #include "ae/ae.h"
 #include "ae/anet.h"
 #include "common.h"
@@ -132,6 +131,7 @@ void start_server() {
     anetNonBlock(g_server.err_msg, fd);
     assert(aeCreateFileEvent(g_server.loop, fd, AE_READABLE, conn_handler, NULL) 
             != AE_ERR);
+    LOG_INFO << "start server";
     aeMain(g_server.loop);
 }
 

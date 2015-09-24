@@ -3,6 +3,8 @@
 
 #include <unordered_map>
 #include <string>
+#include "common.h"
+#include "protocol.h"
 
 struct aeEventLoop;
 
@@ -13,19 +15,12 @@ const int kMaxAcceptPerCall = 1000;
 const int kNetIPStrLen = 46;
 const int kProtoIOBufLen = 1024 * 16;
 
-typedef struct request_t {
-    int version;
-    char* method;
-    int req_proto_size;
-    char* req_proto;
-} request_t;
-
 typedef struct client_t {
     uint32_t id;
     int fd;
     int req_size;
     char req_buf[kProtoIOBufLen];
-    request_t request;
+    message_t request;
     std::string response;
 
     client_t() {

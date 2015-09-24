@@ -29,10 +29,12 @@ DEP('glog', '1.0.0')
 
 
 sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp')
-test_sources = GLOB('test/test.cpp')
+test_send_sources = GLOB('test/test_send.cpp')
+test_get_sources = GLOB('test/test_get.cpp')
 #需要产出的bin, 产出目录./output/bin/
 APP('seiya', sources)
-APP('test', test_sources)
+APP('test_send', test_send_sources)
+APP('test_get', test_get_sources)
 #传出的静态库, 产出目录./output/lib ./output/include
 #STATIC_LIB('liba.a', sources, headers)
 
