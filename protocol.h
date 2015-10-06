@@ -26,7 +26,7 @@ public:
 
 public:
     int encode(const std::string& name,
-               const ::google::protobuf::Message* message,
+               const std::string& content,
                std::string* buf,
                int id = 0); 
 

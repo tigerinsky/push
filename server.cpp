@@ -17,12 +17,26 @@ static int server_cron(aeEventLoop* loop, long long id, void* data) {
     return kServerCronInterval;
 }
 
+static int test_cron(aeEventLoop* loop, long long id, void* data) {
+    printf("%d: ", g_server.client_map.size()); 
+    for (auto ite : g_server.client_map) {
+        printf("%llu ", ite.first); 
+    }
+    printf("\n");
+//    for (auto& ite : g_server.client_map) {
+    return 1000;
+}
 
 void init_server() {
     g_server.loop = aeCreateEventLoop(1024);
     aeCreateTimeEvent(g_server.loop, 
                       kServerCronInterval, 
                       server_cron, 
+                      NULL, 
+                      NULL);
+    aeCreateTimeEvent(g_server.loop, 
+                      1000, 
+                      test_cron, 
                       NULL, 
                       NULL);
     init_service();
@@ -51,7 +65,9 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
     int ret = -1;
     int nwrite = 0;
     while (true) {
-        ret = write(fd, c->response.c_str() + nwrite, c->response.size() - nwrite); 
+        ret = write(fd, 
+                    c->output_buf.c_str() + nwrite, 
+                    c->output_buf.size() - nwrite); 
         if (ret < 0) {
             if (EAGAIN == errno) {
                 return;  
@@ -62,17 +78,17 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
             }
         }
         nwrite += ret;
-        if (nwrite == c->response.size()) {
+        if (nwrite == c->output_buf.size()) {
             break; 
         }
     }
-    c->response.clear();
+    c->output_buf.clear();
     aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
 }
 
 static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
     client_t* c = (client_t*)data;
-    int ret = read(fd, c->req_buf, kProtoIOBufLen);
+    int ret = read(fd, c->input_buf, kProtoIOBufLen);
     if (0 == ret) {
         return;
     } else if (ret < 0) {
@@ -84,14 +100,16 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
             return; 
         }
     }
-    c->req_size = ret;
+    c->input_size = ret;
     ret = service(c);
     if (0 != ret) {
         free_client(c); 
         return;
     }
-    if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
-        free_client(c);
+    if (c->output_buf.size() > 0) {
+        if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
+            free_client(c);
+        }
     }
 }
 

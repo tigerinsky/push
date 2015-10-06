@@ -5,16 +5,14 @@
 namespace im {
 
 int Protocol::encode(const std::string& name,
-                     const ::google::protobuf::Message* message,
+                     const std::string& content,
                      std::string* buf, 
                      int id) {
     buf->clear();
     _encode_msg.Clear();
-    _encode_msg.set_id(id);
+    _encode_msg.set_mid(id);
     _encode_msg.set_name(name);
-    if (!message->SerializeToString(_encode_msg.mutable_data())) {
-        return 1; 
-    }
+    _encode_msg.set_content(content);
     int proto_size = _encode_msg.ByteSize();
     message_header_t header;
     header.version = kVersion;
@@ -25,7 +23,7 @@ int Protocol::encode(const std::string& name,
     buf->resize(size);
     if(!_encode_msg.SerializeToArray((char*)(buf->c_str() + sizeof(header)),
                                proto_size)) {
-        return 2;
+        return 1;
     }
     return 0;
 }
@@ -52,10 +50,10 @@ int Protocol::decode(const char* input, int size, message_t* message) {
         return 4;
     }
     message->version = header->version;
-    message->id = _decode_msg.id();
+    message->id = _decode_msg.mid();
     message->method = _decode_msg.name().c_str();
-    message->req_proto_size = _decode_msg.data().size();
-    message->req_proto = _decode_msg.data().c_str();
+    message->req_proto_size = _decode_msg.content().size();
+    message->req_proto = _decode_msg.content().c_str();
     return 0;
 }
 

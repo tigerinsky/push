@@ -16,8 +16,8 @@ int main (int argc, char** argv) {
     message.ParseFromArray(buf + 5, size - 5);
     printf("msg:[%s]\n", message.DebugString().c_str());
 
-    connect::HiRequest hi;
-    hi.ParseFromString(message.data());
+    client::HiRequest hi;
+    hi.ParseFromString(message.content());
     printf("hi:[%s]\n", hi.DebugString().c_str());
     return 0;
 }

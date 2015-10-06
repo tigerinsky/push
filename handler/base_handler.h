@@ -1,7 +1,7 @@
 #ifndef PUSH_HANDLER_BASE_HANDLER_H
 #define PUSH_HANDLER_BASE_HANDLER_H
 
-#include "google/protobuf/message.h"
+#include "server.h"
 
 namespace im {
 
@@ -11,8 +11,7 @@ public:
     virtual ~BaseHandler() {}
 
 public:
-    virtual void handle(const char* input_msg, int input_size,
-                        const ::google::protobuf::Message** message) = 0;
+    virtual void handle(client_t* c) = 0;
 };
 
 }

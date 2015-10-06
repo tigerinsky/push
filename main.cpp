@@ -1,6 +1,13 @@
 #include "glog/logging.h"
-#include "google/gflags.h"
 #include "server.h"
+#include "flag.h"
+
+namespace im {
+
+DEFINE_bool(enable_connect_verify, true, "whether open conn verify");
+
+}
+
 
 int main (int argc, char** argv) {
     ::google::ParseCommandLineFlags(&argc, &argv, true);

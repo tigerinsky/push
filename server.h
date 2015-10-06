@@ -17,21 +17,26 @@ const int kProtoIOBufLen = 1024 * 16;
 
 typedef struct client_t {
     uint32_t id;
+    std::string conn_id;
+    bool is_verified;
     int fd;
-    int req_size;
-    char req_buf[kProtoIOBufLen];
+    int input_size;
+    char input_buf[kProtoIOBufLen];
     message_t request;
     std::string response;
+    std::string output_buf;
 
     client_t() {
         id = 0;
+        is_verified = false;
         fd = -1; 
+        resp_proto = NULL;
     }
 } client_t;
 
 typedef struct server_t {
     aeEventLoop* loop;
-    std::unordered_map<uint32_t, client_t*> client_map;
+    std::unordered_map<uint64_t, client_t*> client_map;
     char err_msg[1024];
     uint32_t next_client_id;
 
