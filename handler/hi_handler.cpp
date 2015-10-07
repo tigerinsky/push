@@ -8,6 +8,9 @@ void HiHandler::handle(client_t* c) {
     client::HiRequest request;
     client::HiResponse response;
     c->response.clear();
+    if (c->status != NONE_PERSIST) {
+        return; 
+    }
     if (request.ParseFromArray(c->request.req_proto, c->request.req_proto_size)) {
         response.set_msg(request.msg());
         if (!response.SerializeToString(&(c->response))) {

@@ -9,6 +9,10 @@ void init_service();
 
 int service(client_t* client);
 
+void check_alive();
+
+void send_message();
+
 }
 
 #endif

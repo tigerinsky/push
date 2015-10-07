@@ -24,9 +24,10 @@ void ConnectHandler::handle(client_t* c) {
         << "] token[" << request.token() 
         << "] sign[" << request.sign() << "]";
     if (is_valid(request)) {
-        c->is_verified = true;
-        c->conn_id = _request.conn_id();
-        g_server.client_map[_request.conn_id()] = c;
+        c->conn_id = request.conn_id();
+        c->status = PERSIST;
+        g_server.client_map[request.conn_id()] = c;
+        g_server.persistent_clients.push_front(c);
         response.set_err_code(OK);
         LOG_INFO << "new connect: conn_id[" << request.conn_id()
             << "] token[" << request.token() 

@@ -7,7 +7,7 @@ namespace im {
 int Protocol::encode(const std::string& name,
                      const std::string& content,
                      std::string* buf, 
-                     int id) {
+                     uint64_t id) {
     buf->clear();
     _encode_msg.Clear();
     _encode_msg.set_mid(id);

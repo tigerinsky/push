@@ -13,18 +13,9 @@ namespace im {
 server_t g_server;
 
 static int server_cron(aeEventLoop* loop, long long id, void* data) {
-//    printf("%s\n", (char*)data);
+    check_alive();
+    send_message();
     return kServerCronInterval;
-}
-
-static int test_cron(aeEventLoop* loop, long long id, void* data) {
-    printf("%d: ", g_server.client_map.size()); 
-    for (auto ite : g_server.client_map) {
-        printf("%llu ", ite.first); 
-    }
-    printf("\n");
-//    for (auto& ite : g_server.client_map) {
-    return 1000;
 }
 
 void init_server() {
@@ -34,15 +25,10 @@ void init_server() {
                       server_cron, 
                       NULL, 
                       NULL);
-    aeCreateTimeEvent(g_server.loop, 
-                      1000, 
-                      test_cron, 
-                      NULL, 
-                      NULL);
     init_service();
 }
 
-static client_t* create_client() {
+client_t* create_client() {
     client_t* c = new(std::nothrow) client_t;
     if (NULL == c) {
         return NULL; 
@@ -52,11 +38,24 @@ static client_t* create_client() {
     return c;
 }
 
-static void free_client(client_t* c) {
+void free_client(client_t* c) {
     if (c->fd > 0) {
         aeDeleteFileEvent(g_server.loop, c->fd, AE_READABLE);
         aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
         close(c->fd);
+        c->fd = -1;
+    }
+    switch (c->status) {
+    case NONE_PERSIST:
+    case DEAD:
+        delete c;
+        break;
+    case PERSIST:
+        g_server.client_map.erase(c->conn_id);
+        c->status = DEAD;
+        break;
+    default:
+        LOG_WARN << "server panic: unexpecting status[" << c->status <<"]";
     }
 }
 
@@ -84,6 +83,9 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
     }
     c->output_buf.clear();
     aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
+    if (NONE_PERSIST == c->status) {
+        free_client(c); 
+    }
 }
 
 static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
@@ -110,6 +112,10 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
         if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
             free_client(c);
         }
+    } else {
+        if (NONE_PERSIST == c->status) {
+            free_client(c); 
+        } 
     }
 }
 

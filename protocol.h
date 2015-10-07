@@ -7,7 +7,7 @@ namespace im {
 
 typedef struct message_t {
     char version;
-    int id;
+    uint64_t id;
     const char* method;
     int req_proto_size;
     const char* req_proto;
@@ -28,7 +28,7 @@ public:
     int encode(const std::string& name,
                const std::string& content,
                std::string* buf,
-               int id = 0); 
+               uint64_t id = 0); 
 
     int decode(const char* input, int size, message_t* message);
 
