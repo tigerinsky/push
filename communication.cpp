@@ -1,4 +1,5 @@
 #include "communication.h"
+#include <arpa/inet.h> 
 #include "ae/anet.h"
 #include "common.h"
 #include "protocol.h"
@@ -32,12 +33,19 @@ int send(int fd,
 int read(int fd, message_t* message) {
     static char buf[10240];
     int ret = -1;
-    ret = anetRead(fd, buf, sizeof(buf));
-    if (ret <= 0) {
-        LOG_WARN << "read error, ret["<<ret<<"]";
+    message_header_t* header = (message_header_t*)buf;
+    ret = anetRead(fd, buf, sizeof(*header));
+    if (ret !=  sizeof(*header)) {
+        LOG_WARN << "read header error, ret["<<ret<<"] errno["<<errno<<"]";
         return 1;
     }
-    ret = s_protocol.decode(buf, ret, message);
+    int proto_size = ntohl(header->proto_size);
+    ret = anetRead(fd, buf + sizeof(*header), proto_size);
+    if (ret != proto_size) {
+        LOG_WARN << "read data error, ret["<<ret<<"] errno["<<errno<<"]";
+        return 1;
+    }
+    ret = s_protocol.decode(buf, proto_size + sizeof(*header), message);
     if (ret) {
         LOG_WARN << "decode message error, ret["<<ret<<"]";
         return 2;

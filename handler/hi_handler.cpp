@@ -8,7 +8,7 @@ void HiHandler::handle(client_t* c) {
     client::HiRequest request;
     client::HiResponse response;
     c->response.clear();
-    if (c->status != NONE_PERSIST) {
+    if (c->status != PERSIST) {
         return; 
     }
     if (request.ParseFromArray(c->request.req_proto, c->request.req_proto_size)) {

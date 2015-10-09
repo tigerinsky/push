@@ -117,13 +117,16 @@ void send_message() {
         push_msg_t* msg = NULL;
         while (true) {
             msg = g_server.msg_queue.front(); 
+            if (NULL == msg) {
+                return; 
+            }
             if (msg->send != msg->request.conn_id_list_size()) {
                 break;
             } 
             g_server.msg_queue.pop();
             delete msg;
         }     
-        uint64_t conn_id = msg->request.conn_id_list(msg->send);
+        uint64_t conn_id = msg->request.conn_id_list(msg->send++);
         auto ite = g_server.client_map.find(conn_id);
         if (ite == g_server.client_map.end()) {
             LOG_ERROR << "send msg: no suitable conn found, conn_id["

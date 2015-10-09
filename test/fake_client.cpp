@@ -98,8 +98,8 @@ int main (int argc, char** argv) {
             LOG_INFO << "receive hi response, msg["<<hi_response.msg()<<"]";
         } else if (0 == strcmp(message.method, "notify_message")) {
             client::NotifyMessageRequest notify_req;
-            if (notify_req.ParseFromArray(message.req_proto,
-                                          message.req_proto_size)) {
+            if (!notify_req.ParseFromArray(message.req_proto,
+                                           message.req_proto_size)) {
                 LOG_ERROR << "parse notify req error"; 
                 break;
             }
