@@ -5,6 +5,7 @@
 #include "handler/handler.h"
 #include "protocol.h"
 #include "common.h"
+#include "ae/anet.h"
 
 namespace im {
 
@@ -139,6 +140,14 @@ void send_message() {
                 << conn_id << "] mid[" << msg->request.mid() << "]"; 
             continue;
         }
+        ret = anetWrite(c->fd, (char*)(c->output_buf.c_str()), c->output_buf.size());
+        if (ret != c->output_buf.size()) {
+            LOG_ERROR << "send msg: write msg error, ret[" 
+                << ret << "] errno[" << errno << "]";
+            continue;
+        }
+        LOG_INFO << "send msg: finish, conn_id["
+            << conn_id << "] mid[" << msg->request.mid() << "]";
     }
 }
 
