@@ -18,6 +18,8 @@ struct timeval nowtime();
 #define run_within_time(ms) \
     for (struct timeval now = nowtime(); TIME_DIFF(now, nowtime()) * 1000 < ms;) 
 
+void md5(const char* data, int size, char* output);
+
 #endif
 
 

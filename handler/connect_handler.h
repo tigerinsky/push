@@ -12,6 +12,7 @@ public:
 
 public:
     void handle(client_t* client);
+
 };
 
 }

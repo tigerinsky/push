@@ -8,7 +8,6 @@ int Protocol::encode(const std::string& name,
                      const std::string& content,
                      std::string* buf, 
                      uint64_t id) {
-    buf->clear();
     _encode_msg.Clear();
     _encode_msg.set_mid(id);
     _encode_msg.set_name(name);
@@ -17,10 +16,10 @@ int Protocol::encode(const std::string& name,
     message_header_t header;
     header.version = kVersion;
     header.proto_size = htonl(proto_size);
-    int size = sizeof(message_header_t) + proto_size; 
-    buf->reserve(size);
+    int new_size = buf->size() + sizeof(message_header_t) + proto_size; 
+    buf->reserve(new_size);
     buf->append((char*)(&header), sizeof(header));
-    buf->resize(size);
+    buf->resize(new_size);
     if(!_encode_msg.SerializeToArray((char*)(buf->c_str() + sizeof(header)),
                                proto_size)) {
         return 1;
@@ -30,7 +29,7 @@ int Protocol::encode(const std::string& name,
 
 int Protocol::decode(const char* input, int size, message_t* message) {
     if (size < sizeof(message_header_t)) {
-        return 1; 
+        return -1; 
     }
     const char* p = input;
     message_header_t* header = (message_header_t*)p;
@@ -39,22 +38,23 @@ int Protocol::decode(const char* input, int size, message_t* message) {
         << "] version[" << (int)header->version
         << "] proto_size[" << header->proto_size << "]";
     if (header->version != kVersion) {
-        return 2; 
+        return -2; 
     }
-    if (size != sizeof(message_header_t) + header->proto_size) {
-        return 3; 
+    int total_size = sizeof(message_header_t) + header->proto_size;
+    if (size < total_size) {
+        return -3; 
     }
     p += sizeof(message_header_t);
     _decode_msg.Clear();
     if (!_decode_msg.ParseFromArray(p, header->proto_size)) {
-        return 4;
+        return -4;
     }
     message->version = header->version;
     message->id = _decode_msg.mid();
     message->method = _decode_msg.name().c_str();
     message->req_proto_size = _decode_msg.content().size();
     message->req_proto = _decode_msg.content().c_str();
-    return 0;
+    return total_size;
 }
 
 }

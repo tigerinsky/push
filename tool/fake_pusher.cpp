@@ -25,6 +25,7 @@ int main (int argc, char** argv) {
         return 1;
     }
     int fd = ret;
+    anetEnableTcpNoDelay(NULL, fd); 
     common::IMMessage msg;
     msg.set_type(common::TEXT);
     msg.set_message_id(FLAGS_mid);
@@ -45,7 +46,7 @@ int main (int argc, char** argv) {
     LOG_INFO << "send message, id["<<FLAGS_mid<<"] msg["
         <<FLAGS_msg<<"] to["<<FLAGS_to<<"]";
     message_t resp_msg;
-    ret = read(fd, &resp_msg);
+    ret = receive(fd, &resp_msg);
     if (ret) {
         LOG_ERROR << "read reasponse from server error"; 
         return 1;

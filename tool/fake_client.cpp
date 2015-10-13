@@ -9,7 +9,7 @@
 
 DEFINE_string(h, "127.0.0.1", "");
 DEFINE_int32(p, 8888, "");
-DEFINE_uint64(conn_id, 1, "");
+DEFINE_string(conn_id, "1", "");
 DEFINE_string(token, "nvshenzuipiaoliang", "");
 
 using namespace im;
@@ -17,7 +17,7 @@ using namespace im;
 int g_fd;
 pthread_t g_hi_thread;
 
-int connect(uint64_t conn_id, const std::string& token) {
+int connect(const std::string& conn_id, const std::string& token) {
     client::ConnectRequest conn_request;
     client::ConnectResponse conn_response;
     conn_request.set_conn_id(conn_id);
@@ -27,7 +27,7 @@ int connect(uint64_t conn_id, const std::string& token) {
         return 1;
     }
     message_t response;
-    if (read(g_fd, &response)) {
+    if (receive(g_fd, &response)) {
         LOG_WARN << "read conn response error";
         return 2;
     }
@@ -69,6 +69,7 @@ int main (int argc, char** argv) {
         return 1;
     }
     g_fd = ret;
+    anetEnableTcpNoDelay(NULL, g_fd); 
 
     if (connect(FLAGS_conn_id, FLAGS_token)) {
         LOG_ERROR << "build connect error, conn_id["
@@ -83,7 +84,7 @@ int main (int argc, char** argv) {
     char buf[10240];
     message_t message;
     while (true) {
-        ret = read(g_fd, &message);
+        ret = receive(g_fd, &message);
         if (ret) {
             LOG_ERROR << "read error";
             break; 

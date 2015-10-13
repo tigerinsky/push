@@ -11,7 +11,7 @@ int send(int fd,
          const ::google::protobuf::Message& message,
          uint64_t mid=0);
 
-int read(int fd, message_t* message);
+int receive(int fd, message_t* message);
 }
 
 #endif

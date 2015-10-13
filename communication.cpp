@@ -14,6 +14,7 @@ int send(int fd,
          uint64_t mid) {
     static std::string data;
     static std::string buf;
+    buf.clear();
     message.SerializeToString(&data);
     int ret = s_protocol.encode(name, data, &buf, mid);
     if (ret) {
@@ -30,23 +31,23 @@ int send(int fd,
     return 0;
 }
 
-int read(int fd, message_t* message) {
-    static char buf[10240];
+int receive(int fd, message_t* message) {
+    static char buf[102400];
     int ret = -1;
     message_header_t* header = (message_header_t*)buf;
-    ret = anetRead(fd, buf, sizeof(*header));
-    if (ret !=  sizeof(*header)) {
+    ret = read(fd, buf, sizeof(*header));
+    if (ret <=  0) {
         LOG_WARN << "read header error, ret["<<ret<<"] errno["<<errno<<"]";
         return 1;
     }
-    int proto_size = ntohl(header->proto_size);
-    ret = anetRead(fd, buf + sizeof(*header), proto_size);
-    if (ret != proto_size) {
+    int size  = ntohl(header->proto_size);
+    ret = read(fd, buf + sizeof(*header), size);
+    if (ret != size) {
         LOG_WARN << "read data error, ret["<<ret<<"] errno["<<errno<<"]";
         return 1;
     }
-    ret = s_protocol.decode(buf, proto_size + sizeof(*header), message);
-    if (ret) {
+    ret = s_protocol.decode(buf, size + sizeof(*header), message);
+    if (ret < 0) {
         LOG_WARN << "decode message error, ret["<<ret<<"]";
         return 2;
     }

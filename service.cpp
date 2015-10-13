@@ -36,43 +36,58 @@ void init_service() {
     ADD_HANDLER(SEND_MSG_CMD, SendMessageHandler);
 }
 
-int service(client_t* c) {
+int service2(client_t* c) {
     int ret = -1;
-    struct timeval tv_begin, tv_end;
-    gettimeofday(&tv_begin, NULL);
-    c->last_active_time = tv_begin.tv_sec;
-    ret = g_protocol.decode(c->input_buf, c->input_size, &(c->request));
-    if (ret) {
-        LOG_ERROR << "service: decode request error, ret["<< ret <<"]";
-        return 1; 
-    }
     message_t& request = c->request;
     auto ite = g_handler_map.find(request.method);
     if (g_handler_map.end() == ite) {
         LOG_ERROR << "service: no matching handler, method["<< request.method <<"]";
-        return 3; 
+        return 1; 
     }
     handler_t* handler = ite->second;
     handler->proc->handle(c);
-    if (c->response.size() > 0) {
-        ret = g_protocol.encode(handler->name, 
-                                c->response, 
-                                &(c->output_buf), 
-                                request.id);
-        if (ret) {
-            LOG_ERROR << "service: encode response error, ret["<< ret <<"]";
-            return 4; 
+    return 0;
+}
+
+int service(client_t* c) {
+    int ret = -1;
+    char* p_input = c->input_buf;
+    int left_size = c->input_size;
+    c->output_buf.clear();
+    while (left_size > sizeof(message_header_t)) {
+        struct timeval tv_begin, tv_end;
+        gettimeofday(&tv_begin, NULL);
+        c->last_active_time = tv_begin.tv_sec;
+        ret = g_protocol.decode(p_input, left_size, &(c->request)); 
+        if (0 > ret) {
+            LOG_ERROR << "service: decode request error, ret[" << ret << "]"; 
+            return 1;
         }
-    } else {
-        c->output_buf.clear(); 
-    }
-    gettimeofday(&tv_end, NULL);
-    LOG_INFO << "service: cost[" << TIME_DIFF(tv_begin, tv_end)
-        << "] version[" <<  (int)(request.version)
-        << "] id[" << request.id
-        << "] method[" << request.method 
-        << "] input[" << c->input_size
-        << "] output[" << c->output_buf.size() << "]";
+        p_input += ret;
+        left_size -= ret;
+        ret = service2(c);
+        if (ret) {
+            LOG_ERROR << "service: handle request error, ret[" << ret << "]"; 
+            return 1; 
+        }
+        if (c->response.size() > 0) {
+            ret = g_protocol.encode(c->request.method, 
+                                    c->response, 
+                                    &(c->output_buf), 
+                                    c->request.id);
+            if (ret) {
+                LOG_ERROR << "service: encode response error, ret["<< ret <<"]";
+                return 4; 
+            }
+        }
+        gettimeofday(&tv_end, NULL);
+        LOG_INFO << "service: cost[" << TIME_DIFF(tv_begin, tv_end)
+            << "] version[" <<  (int)(c->request.version)
+            << "] id[" << c->request.id
+            << "] method[" << c->request.method 
+            << "] input[" << c->input_size
+            << "] output[" << c->output_buf.size() << "]";
+    } 
     return 0;
 }
 
@@ -116,10 +131,10 @@ void send_message() {
     run_within_time (10) {
         push_msg_t* msg = NULL;
         while (true) {
-            msg = g_server.msg_queue.front(); 
-            if (NULL == msg) {
+            if (0 == g_server.msg_queue.size()) {
                 return; 
             }
+            msg = g_server.msg_queue.front(); 
             if (msg->send != msg->request.conn_id_list_size()) {
                 break;
             } 
@@ -134,6 +149,7 @@ void send_message() {
             continue;
         }
         client_t* c = ite->second;
+        c->output_buf.clear();
         ret = g_protocol.encode(NOTIFY_MSG_CMD, 
                                 msg->data, 
                                 &(c->output_buf), 
