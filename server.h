@@ -13,11 +13,11 @@ struct aeEventLoop;
 
 namespace im {
 
-const int kServerCronInterval = 1;
+const int kServerCronInterval = 50;
 const int kMaxAcceptPerCall = 1000;
 const int kNetIPStrLen = 46;
 const int kProtoIOBufLen = 1024 * 16;
-const int kCheckAliveNum = 1000;
+const int kCheckAliveNum = 500;
 const int kKeepAliveSec = 240;
 
 enum {
@@ -56,6 +56,7 @@ typedef struct push_msg_t {
 
 typedef struct server_t {
     aeEventLoop* loop;
+    long cronloops;
     std::unordered_map<uint64_t, client_t*> client_map;
     std::forward_list<client_t*> persistent_clients;
     std::forward_list<client_t*>::iterator check_alive_ptr;
@@ -65,6 +66,7 @@ typedef struct server_t {
 
     server_t() {
         loop = NULL; 
+        cronloops = 0;
         next_client_id = 1;
         check_alive_ptr = persistent_clients.end();
     }
@@ -74,6 +76,7 @@ extern server_t g_server;
 
 void init_server();
 void start_server();
+void stop_server();
 client_t* create_client();
 void free_client(client_t* c);
 

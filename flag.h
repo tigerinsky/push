@@ -11,6 +11,7 @@ DECLARE_int32(offhub_port);
 DECLARE_bool(enable_conn_notify);
 DECLARE_bool(enable_token_verify);
 DECLARE_bool(enable_sign_verify);
+DECLARE_bool(enable_profiling);
 
 }
 

@@ -103,13 +103,18 @@ void check_alive() {
     long now = time(NULL);
     auto next_ptr = g_server.check_alive_ptr;
     ++next_ptr;
+//    LOG_DEBUG << "do 1";
     for (int i = 0; i < kCheckAliveNum; ++i) {
+//        LOG_DEBUG << "do 2";
         if (g_server.persistent_clients.end() == next_ptr) {
             g_server.check_alive_ptr = g_server.persistent_clients.end(); 
             break;
         }
         client_t* c = *(next_ptr); 
-        if (now - c->last_active_time > kKeepAliveSec && PERSIST == c->status) {
+        long diff = now - c->last_active_time;
+        if (diff < kKeepAliveSec / 2) {
+            break;
+        } else if (diff > kKeepAliveSec && PERSIST == c->status) {
             next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
             free_client(c);
             delete c;
@@ -134,6 +139,7 @@ void send_message() {
         return; 
     }
     run_within_time (10) {
+//        LOG_DEBUG << "do 3";
         push_msg_t* msg = NULL;
         while (true) {
             if (0 == g_server.msg_queue.size()) {

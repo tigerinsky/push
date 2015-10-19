@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include "gperftools/profiler.h"
 #include "ae/ae.h"
 #include "ae/anet.h"
 #include "common.h"
@@ -14,17 +15,22 @@ namespace im {
 
 server_t g_server;
 
+#define run_with_period(ms) if ((ms <= kServerCronInterval) || !(g_server.cronloops % (ms / kServerCronInterval)))
+
 static int server_cron(aeEventLoop* loop, long long id, void* data) {
-    check_alive();
+    run_with_period(100) {
+        check_alive();
+    }
     send_message();
+    ++g_server.cronloops;
     return kServerCronInterval;
 }
 
 void init_server() {
     g_offhub_proxy = new OffhubProxy(FLAGS_offhub_host.c_str(), FLAGS_offhub_port);
-    g_server.loop = aeCreateEventLoop(1024);
+    g_server.loop = aeCreateEventLoop(200000);
     aeCreateTimeEvent(g_server.loop, 
-                      kServerCronInterval, 
+                      1, 
                       server_cron, 
                       NULL, 
                       NULL);
@@ -158,8 +164,19 @@ void start_server() {
     anetNonBlock(g_server.err_msg, fd);
     assert(aeCreateFileEvent(g_server.loop, fd, AE_READABLE, conn_handler, NULL) 
             != AE_ERR);
+    if (FLAGS_enable_profiling) {
+        ProfilerStart("./haha");  
+    }
     LOG_INFO << "start server";
     aeMain(g_server.loop);
+}
+
+void stop_server() {
+    //TODO
+    if (FLAGS_enable_profiling) {
+        ProfilerStop();  
+    }
+    exit(1);
 }
 
 }

@@ -42,6 +42,7 @@
 
 #include "ae.h"
 #include "ae_epoll.c"
+#include "common.h"
 
 aeEventLoop *aeCreateEventLoop(int setsize) {
     aeEventLoop *eventLoop;
@@ -404,6 +405,7 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
     /* Check time events */
     if (flags & AE_TIME_EVENTS)
         processed += processTimeEvents(eventLoop);
+//    LOG_ERROR << "libo2:" << processed;
 
     return processed; /* return the number of processed file/time events */
 }

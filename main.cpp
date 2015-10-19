@@ -10,13 +10,20 @@ DEFINE_int32(offhub_port, 9027, "offhub service port");
 DEFINE_bool(enable_conn_notify, true, "whether notify offhub for conn notify");
 DEFINE_bool(enable_token_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_sign_verify, true, "whether turn on token verify");
+DEFINE_bool(enable_profiling, false, "whether turn on profiling");
 
 }
 
 
+void stop(int) {
+    im::stop_server();
+}
+
 int main (int argc, char** argv) {
     ::google::ParseCommandLineFlags(&argc, &argv, true);
     ::google::InitGoogleLogging(argv[0]);
+    signal(SIGINT, stop);
+    signal(SIGTERM, stop);
     im::init_server();
     im::start_server();
     return 0;
