@@ -7,6 +7,8 @@
 #include "ae/anet.h"
 #include "common.h"
 #include "service.h"
+#include "flag.h"
+#include "offhub/offhub_proxy.h"
 
 namespace im {
 
@@ -19,6 +21,7 @@ static int server_cron(aeEventLoop* loop, long long id, void* data) {
 }
 
 void init_server() {
+    g_offhub_proxy = new OffhubProxy(FLAGS_offhub_host.c_str(), FLAGS_offhub_port);
     g_server.loop = aeCreateEventLoop(1024);
     aeCreateTimeEvent(g_server.loop, 
                       kServerCronInterval, 
@@ -150,7 +153,7 @@ static void conn_handler(aeEventLoop* loop, int fd, void* data, int mask) {
 
 void start_server() {
     signal(SIGPIPE, SIG_IGN);
-    int fd = anetTcpServer(g_server.err_msg, 9999, NULL, 700);
+    int fd = anetTcpServer(g_server.err_msg, FLAGS_port, NULL, 700);
     assert(fd != ANET_ERR);
     anetNonBlock(g_server.err_msg, fd);
     assert(aeCreateFileEvent(g_server.loop, fd, AE_READABLE, conn_handler, NULL) 

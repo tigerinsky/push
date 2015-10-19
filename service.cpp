@@ -6,6 +6,8 @@
 #include "protocol.h"
 #include "common.h"
 #include "ae/anet.h"
+#include "offhub/offhub_proxy.h"
+#include "flag.h"
 
 namespace im {
 
@@ -111,6 +113,9 @@ void check_alive() {
             next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
             free_client(c);
             delete c;
+            if (FLAGS_enable_conn_notify) {
+                g_offhub_proxy->conn_off_notify(c->conn_id);
+            }
             LOG_INFO << "timeout release conn[" << c->conn_id << "]";
         } else if (DEAD == c->status) {
             next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);

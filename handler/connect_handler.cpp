@@ -2,14 +2,16 @@
 #include <openssl/md5.h>
 #include "connect.pb.h"
 #include "common.h"
+#include "flag.h"
+#include "offhub/offhub_proxy.h"
 
 namespace im {
 
-static bool is_valid(const client::ConnectRequest& request) {
+static bool token_verify(const client::ConnectRequest& request) {
     if (0 == strcmp(request.token().c_str(), "nvshenzuipiaoliang")) {
         return true;
     }
-    char md[32];
+    char md[33]; // MD5_DIGEST_LENGTH * 2
     char buf[256];
     long t = time(NULL);
     int size = snprintf(buf, 
@@ -17,14 +19,47 @@ static bool is_valid(const client::ConnectRequest& request) {
                         "%lld%snvshen", 
                         t / 30, 
                         request.conn_id().c_str()); 
-    printf("%s\n", buf);
     md5(buf, size, md);
-    if (0 == strcasecmp(md, request.token().c_str())) {
-        return true;
+    if (0 != strcasecmp(md, request.token().c_str())) {
+        LOG_DEBUG << "conn fail:time[" 
+            << t << "] "<<size<<"token["<< request.token() <<"] md5[" << md << "]";
+        return false;
     }
-    LOG_DEBUG << "conn fail:time[" 
-        << t << "] "<<size<<"token["<< request.token() <<"] md5[" << md << "]";
-    return false;
+    return true;
+}
+
+static bool sign_verify(const client::ConnectRequest& request) {
+    char sha_md[20];
+    char md5_md[33];
+    char buf[256];
+    int size = snprintf(buf, 
+                        256, 
+                        "conn_id=%s&token=%s", 
+                        request.conn_id().c_str(),
+                        request.token().c_str());
+    md5(sha1(buf, size, sha_md), 20, md5_md);
+    if (0 != strcasecmp(md5_md, request.sign().c_str())) {
+        LOG_DEBUG << "conn fail: sign_str[" 
+            << buf << "] sign[" << request.sign() << "]";
+        return false; 
+    }
+    return true;
+}
+
+static bool is_valid(const client::ConnectRequest& request) {
+    if (FLAGS_enable_token_verify && !token_verify(request)) {
+        LOG_ERROR << "request token verify fail, conn_id["
+            << request.conn_id() << "] token[" 
+            << request.token() << "] sign[" << request.sign() << "]";
+        return false;
+    }
+    if (FLAGS_enable_sign_verify && !sign_verify(request)) {
+        LOG_ERROR << "request sign verify fail, conn_id["
+            << request.conn_id() << "] token[" 
+            << request.token() << "] sign[" << request.sign() << "]";
+        return false; 
+    }
+    return true;
 } 
 
 void ConnectHandler::handle(client_t* c) {
@@ -48,6 +83,9 @@ void ConnectHandler::handle(client_t* c) {
         LOG_INFO << "new connect: conn_id[" << request.conn_id()
             << "] token[" << request.token() 
             << "] sign[" << request.sign() << "]";
+        if (FLAGS_enable_conn_notify) {
+            g_offhub_proxy->conn_on_notify(c->conn_id);
+        }
     } else {
         LOG_WARN << "make connect failed: conn_id[" << request.conn_id()
             << "] token[" << request.token() 

@@ -14,7 +14,7 @@ CXX('g++')
 CXXFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -g -pipe -W -Wall -fPIC -fno-omit-frame-pointer -std=c++11')
 
 #链接参数
-LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt')
+LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt -lunwind')
 
 #设置额外的include path，默认为./和每个模块的xx/include, xxx/output/include
 INCLUDE(GLOB('./'))
@@ -28,13 +28,15 @@ DEP('protobuf_old', '1.0.0')
 DEP('glog', '1.0.0')
 
 
-sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp')
+sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp')
 fake_client_sources = GLOB('tool/fake_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
 fake_pusher_sources = GLOB('tool/fake_pusher.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
+test_sources = GLOB('offhub/*.thrift test/test.cpp')
 #需要产出的bin, 产出目录./output/bin/
 APP('seiya', sources)
 APP('fake_client', fake_client_sources)
 APP('fake_pusher', fake_pusher_sources)
+APP('test', test_sources)
 #传出的静态库, 产出目录./output/lib ./output/include
 #STATIC_LIB('liba.a', sources, headers)
 
