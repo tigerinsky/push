@@ -4,7 +4,6 @@
 namespace im {
 
 void HiHandler::handle(client_t* c) {
-
     client::HiRequest request;
     client::HiResponse response;
     c->response.clear();

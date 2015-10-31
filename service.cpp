@@ -51,7 +51,6 @@ int service(client_t* c) {
     int ret = -1;
     char* p_input = c->input_buf;
     int left_size = c->input_size;
-    c->output_buf.clear();
     while (left_size > sizeof(message_header_t)) {
         struct timeval tv_begin, tv_end;
         gettimeofday(&tv_begin, NULL);
@@ -132,8 +131,12 @@ void send_message() {
     if (0 == g_server.msg_queue.size()) {
         return; 
     }
+    struct timeval tv_begin, tv_end;
+    gettimeofday(&tv_begin, NULL);
+    int old_size = g_server.msg_queue.size();
+    int success = 0;
+    int failed = 0;
     run_within_time (10) {
-//        LOG_DEBUG << "do 3";
         push_msg_t* msg = NULL;
         while (true) {
             if (0 == g_server.msg_queue.size()) {
@@ -151,6 +154,7 @@ void send_message() {
         if (ite == g_server.client_map.end()) {
             LOG_ERROR << "send msg: no suitable conn found, conn_id["
                 << conn_id << "] mid[" << msg->request.mid() << "]"; 
+            ++failed;
             continue;
         }
         client_t* c = ite->second;
@@ -162,17 +166,25 @@ void send_message() {
         if (0 != ret) {
             LOG_ERROR << "send msg: encode msg error, conn_id["
                 << conn_id << "] mid[" << msg->request.mid() << "]"; 
+            ++failed;
             continue;
         }
         ret = anetWrite(c->fd, (char*)(c->output_buf.c_str()), c->output_buf.size());
         if (ret != c->output_buf.size()) {
             LOG_ERROR << "send msg: write msg error, ret[" 
                 << ret << "] errno[" << errno << "]";
+            ++failed;
             continue;
         }
+        ++success;
         LOG_INFO << "send msg: finish, conn_id["
             << conn_id << "] mid[" << msg->request.mid() << "]";
     }
+    gettimeofday(&tv_end, NULL);
+    LOG_INFO << "send msg stat: total["
+        << (g_server.msg_queue.size() - old_size) << "] cost["
+        << TIME_DIFF(tv_begin, tv_end) << "] succ["
+        << success << "] fail[" << failed << "]";
 }
 
 }

@@ -16,12 +16,14 @@ int Protocol::encode(const std::string& name,
     message_header_t header;
     header.version = kVersion;
     header.proto_size = htonl(proto_size);
+    int old_size = buf->size();
     int new_size = buf->size() + sizeof(message_header_t) + proto_size; 
     buf->reserve(new_size);
     buf->append((char*)(&header), sizeof(header));
     buf->resize(new_size);
-    if(!_encode_msg.SerializeToArray((char*)(buf->c_str() + sizeof(header)),
-                               proto_size)) {
+    if(!_encode_msg.SerializeToArray(
+                (char*)(buf->c_str() + old_size + sizeof(header)),
+                proto_size)) {
         return 1;
     }
     return 0;

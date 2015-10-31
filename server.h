@@ -18,7 +18,7 @@ const int kMaxAcceptPerCall = 1000;
 const int kNetIPStrLen = 46;
 const int kProtoIOBufLen = 1024 * 16;
 const int kCheckAliveNum = 500;
-const int kKeepAliveSec = 2;
+const int kKeepAliveSec = 240;
 
 enum {
     DEAD,
