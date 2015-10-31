@@ -55,6 +55,7 @@ typedef struct push_msg_t {
 } push_msg_t;
 
 typedef struct server_t {
+    bool stop;
     aeEventLoop* loop;
     long cronloops;
     std::unordered_map<uint64_t, client_t*> client_map;
@@ -65,6 +66,7 @@ typedef struct server_t {
     uint32_t next_client_id;
 
     server_t() {
+        stop = false;
         loop = NULL; 
         cronloops = 0;
         next_client_id = 1;
