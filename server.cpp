@@ -17,7 +17,17 @@ server_t g_server;
 
 #define run_with_period(ms) if ((ms <= kServerCronInterval) || !(g_server.cronloops % (ms / kServerCronInterval)))
 
+static void try_stop() {
+    LOG_INFO << "stop server: left client[" 
+        << g_server.client_map.size() << "] left msg["
+        << g_server.msg_queue.size() << "]";
+    exit(0);
+}
+
 static int server_cron(aeEventLoop* loop, long long id, void* data) {
+    if (g_server.stop) {
+        try_stop(); 
+    }
     run_with_period(100) {
         check_alive();
     }
@@ -78,7 +88,6 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
                     c->output_buf.size() - nwrite); 
         if (ret < 0) {
             if (EAGAIN == errno) {
-                LOG_ERROR << "it really happens 2";
                 return;  
             } else {
                 //err 
@@ -102,10 +111,11 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
     client_t* c = (client_t*)data;
     int ret = read(fd, c->input_buf, kProtoIOBufLen);
     if (0 == ret) {
+        //client close connection
+        free_client(c);
         return;
     } else if (ret < 0) {
         if (EAGAIN == errno) {
-            LOG_ERROR << "it really happens 1";
             return; 
         } else {
         //  err 
@@ -178,7 +188,7 @@ void stop_server() {
     if (FLAGS_enable_profiling) {
         ProfilerStop();  
     }
-    exit(1);
+    g_server.stop = true;
 }
 
 }
