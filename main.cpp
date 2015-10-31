@@ -7,6 +7,7 @@ namespace im {
 DEFINE_int32(port, 9999, "server port");
 DEFINE_string(offhub_host, "127.0.0.1", "offhub service host");
 DEFINE_int32(offhub_port, 9027, "offhub service port");
+DEFINE_int32(max_fd_num, 10000, "service max fd num");
 DEFINE_bool(enable_conn_notify, true, "whether notify offhub for conn notify");
 DEFINE_bool(enable_token_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_sign_verify, true, "whether turn on token verify");

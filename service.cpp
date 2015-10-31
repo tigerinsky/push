@@ -23,11 +23,6 @@ typedef struct handler_t {
 std::unordered_map<std::string, handler_t*> g_handler_map;
 Protocol g_protocol;
 
-#define HI_CMD "hi"
-#define CONNECT_CMD "connect"
-#define NOTIFY_MSG_CMD "notify_message"
-#define SEND_MSG_CMD "send_message"
-
 void init_service() {
 #define ADD_HANDLER(name, handler) do { \
     g_handler_map[name]  = new handler_t(name, new handler()); \
@@ -36,6 +31,7 @@ void init_service() {
     ADD_HANDLER(CONNECT_CMD, ConnectHandler);
     ADD_HANDLER(NOTIFY_MSG_CMD, ClientPushResponseHandler);
     ADD_HANDLER(SEND_MSG_CMD, SendMessageHandler);
+    ADD_HANDLER(DROP_CONN_CMD, DropConnectHandler);
 }
 
 int service2(client_t* c) {
@@ -94,7 +90,7 @@ int service(client_t* c) {
 }
 
 void check_alive() {
-    if (!g_server.persistent_clients.empty()) {
+    if (g_server.persistent_clients.empty()) {
         return; 
     }
     if (g_server.persistent_clients.end() == g_server.check_alive_ptr) {
@@ -103,9 +99,7 @@ void check_alive() {
     long now = time(NULL);
     auto next_ptr = g_server.check_alive_ptr;
     ++next_ptr;
-//    LOG_DEBUG << "do 1";
     for (int i = 0; i < kCheckAliveNum; ++i) {
-//        LOG_DEBUG << "do 2";
         if (g_server.persistent_clients.end() == next_ptr) {
             g_server.check_alive_ptr = g_server.persistent_clients.end(); 
             break;

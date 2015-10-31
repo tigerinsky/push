@@ -5,5 +5,6 @@
 #include "handler/connect_handler.h"
 #include "handler/client_push_response_handler.h"
 #include "handler/send_message_handler.h"
+#include "handler/drop_connect_handler.h"
 
 #endif

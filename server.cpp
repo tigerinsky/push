@@ -28,7 +28,7 @@ static int server_cron(aeEventLoop* loop, long long id, void* data) {
 
 void init_server() {
     g_offhub_proxy = new OffhubProxy(FLAGS_offhub_host.c_str(), FLAGS_offhub_port);
-    g_server.loop = aeCreateEventLoop(200000);
+    g_server.loop = aeCreateEventLoop(FLAGS_max_fd_num);
     aeCreateTimeEvent(g_server.loop, 
                       1, 
                       server_cron, 

@@ -6,6 +6,7 @@
 #include "hi.pb.h"
 #include "client_push.pb.h"
 #include "connect.pb.h"
+#include "reconnect.pb.h"
 
 DEFINE_string(h, "127.0.0.1", "");
 DEFINE_int32(p, 8888, "");
@@ -112,6 +113,14 @@ int main (int argc, char** argv) {
                 LOG_ERROR << "send notify ack error, mid["<< message.id << "]"; 
                 break;
             } 
+        } else if (0 == strcmp(message.method, "re_connect")) {
+            client::ReConnectRequest re_conn_req; 
+            if (!re_conn_req.ParseFromArray(message.req_proto,
+                                            message.req_proto_size)) {
+                LOG_ERROR << "parse reconn req error"; 
+                break;
+            }
+            LOG_INFO << "receive reconn: " << re_conn_req.DebugString();
         } else {
             LOG_WARN << "read unknown data, method["<<message.method<<"]"; 
         }
