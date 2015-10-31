@@ -78,6 +78,7 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
                     c->output_buf.size() - nwrite); 
         if (ret < 0) {
             if (EAGAIN == errno) {
+                LOG_ERROR << "it really happens 2";
                 return;  
             } else {
                 //err 
@@ -104,6 +105,7 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
         return;
     } else if (ret < 0) {
         if (EAGAIN == errno) {
+            LOG_ERROR << "it really happens 1";
             return; 
         } else {
         //  err 
