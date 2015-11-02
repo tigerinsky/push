@@ -87,9 +87,10 @@ void* print_stat(void *arg) {
     }
 }
 
-void start_monitor() {
+int start_monitor() {
     pthread_t pid;
     pthread_create(&pid, NULL, print_stat, NULL);
+    return pid;
 }
 
 void end_monitor() {

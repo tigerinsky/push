@@ -28,7 +28,7 @@ DEP('protobuf_old', '1.0.0')
 DEP('glog', '1.0.0')
 
 
-sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp')
+sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp monitor/*.cpp')
 fake_client_sources = GLOB('tool/fake_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
 drop_client_sources = GLOB('tool/drop_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
 fake_pusher_sources = GLOB('tool/fake_pusher.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
