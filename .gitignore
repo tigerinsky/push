@@ -1,0 +1,5 @@
+*.o
+*.swo
+output/
+Makefile
+test/
