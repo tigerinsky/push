@@ -17,13 +17,13 @@ DEFINE_bool(enable_profiling, false, "whether turn on profiling");
 
 }
 
+pthread_t g_pid;
 
 void stop(int) {
     pthread_cancel(g_pid);
     im::stop_server();
 }
 
-pthread_t g_pid;
 
 int main (int argc, char** argv) {
     ::google::ParseCommandLineFlags(&argc, &argv, true);

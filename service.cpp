@@ -8,6 +8,7 @@
 #include "ae/anet.h"
 #include "offhub/offhub_proxy.h"
 #include "flag.h"
+#include "push_declare.h"
 
 namespace im {
 

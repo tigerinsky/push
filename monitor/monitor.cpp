@@ -1,5 +1,4 @@
 #include <iostream>
-#include <pthread.h>
 #include <unistd.h>
 #include <queue>
 #include "monitor.h"
@@ -87,7 +86,7 @@ void* print_stat(void *arg) {
     }
 }
 
-int start_monitor() {
+pthread_t start_monitor() {
     pthread_t pid;
     pthread_create(&pid, NULL, print_stat, NULL);
     return pid;

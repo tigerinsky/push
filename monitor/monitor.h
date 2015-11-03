@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <limits>  
+#include <pthread.h>
 
 namespace monitor {
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
@@ -80,6 +81,13 @@ struct stat_interval_t {
 
     stat_interval_t():sum(), min(), max() {
         count = 0;
+    }
+
+    void reset() {
+        count = 0;
+        sum = Type();
+        min = Type();
+        max = Type();
     }
 
 };
@@ -216,7 +224,7 @@ public:
         uint32_t range_interval_num = (range_sec + _sensitivity - 1) / _sensitivity;
         stat_interval_t<Type>* interval = _cur_interval;
         if (_flag & kFlagCount) {
-            int count = 0;
+            uint32_t count = 0;
             _calc_count_statistics(interval, range_interval_num, count);
             s += "\t";
             s += std::to_string(_interval->count);
@@ -363,12 +371,12 @@ void StatisticImpl<Type>::_calc_sum_statistics(stat_interval_t<Type>* si,
     Type total = 0;
     for (uint32_t i = 0; i < num; ++i) {
         interval = _pre_interval(interval); 
-        total += interval->sum.get_value();
+        total += interval->sum;
     }
     sum = total;
     amount_per_sec = total * 1.0 / (_sensitivity * num);
     if (has_count) {
-        int32_t count = 0;
+        uint32_t count = 0;
         _calc_count_statistics(interval, num, count);
         if (count != 0) {
             avg = total * 1.0 / count;
@@ -420,7 +428,7 @@ public:
 
 };
 
-void start_monitor();
+pthread_t start_monitor();
 
 void end_monitor();
 
@@ -431,7 +439,7 @@ void* print_stat(void *arg);
         namespace monitor { \
                     extern StatisticImpl<type> g_##name; \
                 } \
-    using inf_monitor_global::g_##name;
+    using monitor::g_##name;
 
 #define DECLARE_STATISTIC_INT32(name) \
         DECLARE_STATISTIC(name, int)
@@ -468,13 +476,13 @@ void* print_stat(void *arg);
     using monitor::g_##name;
 
 #define DEFINE_STATISTIC_INT32(name, arg...) \
-        DEFINE_STATISTIC(name, int, ivar_int32_t, ##arg)
+        DEFINE_STATISTIC(name, int, ##arg)
 
 #define DEFINE_STATISTIC_INT64(name, arg...) \
-        DEFINE_STATISTIC(name, int64, ivar_int64_t, ##arg)
+        DEFINE_STATISTIC(name, int64_t, ##arg)
 
 #define DEFINE_STATISTIC_DOUBLE(name, arg...) \
-        DEFINE_STATISTIC(name, double, ivar_double_t, ##arg)
+        DEFINE_STATISTIC(name, double, ##arg)
 #define DEFINE_ETERNAL_STATISTIC(name, type, flag) \
         namespace monitor{\
                     EternalStatisticImpl<type> g_##name(#name, flag); \
