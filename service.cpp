@@ -181,6 +181,7 @@ void send_message() {
             << conn_id << "] mid[" << msg->request.mid() << "]";
     }
     gettimeofday(&tv_end, NULL);
+    STAT_COLLECT(cost, TIME_DIFF(tv_begin, tv_end))
     LOG_INFO << "send msg stat: total["
         << (g_server.msg_queue.size() - old_size) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["
