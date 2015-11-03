@@ -1,6 +1,7 @@
 #include "glog/logging.h"
 #include "server.h"
 #include "flag.h"
+#include <signal.h>
 
 namespace im {
 
