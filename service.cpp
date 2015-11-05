@@ -8,6 +8,7 @@
 #include "ae/anet.h"
 #include "offhub/offhub_proxy.h"
 #include "flag.h"
+#include "push_declare.h"
 
 namespace im {
 
@@ -192,6 +193,7 @@ void send_message() {
             << conn_id << "] mid[" << msg->request.mid() << "]";
     }
     gettimeofday(&tv_end, NULL);
+    STAT_COLLECT(cost, TIME_DIFF(tv_begin, tv_end))
     LOG_INFO << "send msg stat: total["
         << (success + failed) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["

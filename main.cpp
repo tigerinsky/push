@@ -1,6 +1,8 @@
 #include "glog/logging.h"
 #include "server.h"
 #include "flag.h"
+#include <signal.h>
+#include "push_declare.h"
 
 namespace im {
 
@@ -15,16 +17,20 @@ DEFINE_bool(enable_profiling, false, "whether turn on profiling");
 
 }
 
+pthread_t g_pid;
 
 void stop(int) {
+    pthread_cancel(g_pid);
     im::stop_server();
 }
+
 
 int main (int argc, char** argv) {
     ::google::ParseCommandLineFlags(&argc, &argv, true);
     ::google::InitGoogleLogging(argv[0]);
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
+    g_pid = monitor::start_monitor();
     im::init_server();
     im::start_server();
     return 0;

@@ -33,17 +33,16 @@ DEP('gflags', '1.0.0')
 DEP('protobuf_old', '1.0.0')
 DEP('glog', '1.0.0')
 
-sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp')
+sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp monitor/*.cpp')
 fake_client_sources = GLOB('tool/fake_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
 drop_client_sources = GLOB('tool/drop_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
 fake_pusher_sources = GLOB('tool/fake_pusher.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')
-test_sources = GLOB('offhub/*.thrift test/test.cpp')
+#test_sources = GLOB('offhub/*.thrift test/test.cpp')
 #需要产出的bin, 产出目录./output/bin/
 APP('seiya', sources)
 APP('fake_client', fake_client_sources)
 APP('drop_client', drop_client_sources)
 APP('fake_pusher', fake_pusher_sources)
-APP('test', test_sources)
 #传出的静态库, 产出目录./output/lib ./output/include
 #STATIC_LIB('liba.a', sources, headers)
 
