@@ -11,10 +11,16 @@ THRIFT('../thrift/bin/thrift')
 CXX('g++')
 
 #g++参数
-CXXFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -g -pipe -W -Wall -fPIC -fno-omit-frame-pointer -std=c++11')
+enable_profiling=False
+if enable_profiling:
+    CXXFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D_USE_PROF -g -pipe -W -Wall -fPIC -std=c++11')
+    LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt -lunwind')
+else:
+    CXXFLAGS('-D_GNU_SOURCE -D__STDC_LIMIT_MACROS -g -pipe -W -Wall -fPIC -std=c++11')
+    LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt')
 
 #链接参数
-LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt -lunwind')
+#LDFLAGS('-lcrypto -ldl -lpthread -lm -lrt -lunwind')
 
 #设置额外的include path，默认为./和每个模块的xx/include, xxx/output/include
 INCLUDE(GLOB('./'))
@@ -26,7 +32,6 @@ DEP_LIB(GLOB('./lib/*.a'))
 DEP('gflags', '1.0.0')
 DEP('protobuf_old', '1.0.0')
 DEP('glog', '1.0.0')
-
 
 sources = GLOB('ae/ae.c ae/anet.c *.cpp handler/*.cpp offhub/*.thrift offhub/*.cpp')
 fake_client_sources = GLOB('tool/fake_client.cpp ae/anet.c common.cpp protocol.cpp communication.cpp')

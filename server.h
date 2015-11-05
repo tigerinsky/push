@@ -13,11 +13,12 @@ struct aeEventLoop;
 
 namespace im {
 
-const int kServerCronInterval = 50;
+const int kServerShortCronInterval = 5;
+const int kServerCronInterval = 20;
 const int kMaxAcceptPerCall = 1000;
 const int kNetIPStrLen = 46;
 const int kProtoIOBufLen = 1024 * 16;
-const int kCheckAliveNum = 500;
+const int kCheckAliveNum = 300;
 const int kKeepAliveSec = 240;
 
 enum {

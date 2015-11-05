@@ -28,6 +28,7 @@ void SendMessageHandler::handle(client_t* c) {
         goto end; 
     }
     g_server.msg_queue.push(msg);
+    LOG_INFO << "get send request: num["<< msg->request.conn_id_list_size() <<"]";
     response.set_err_code(OK);
 end:
     notify_msg.release_msg();

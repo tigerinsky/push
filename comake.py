@@ -213,6 +213,7 @@ def _generate_env():
     g_include_str = ' '.join(['-I' + x for x in g_include_path])
     _add_content('INCPATH=%s\n' % (g_include_str))
 
+    #(ret, err, out) = _execute("find %s -maxdepth 3 \\( -path '*/lib/*.a' -o -path '*/output/lib/*.a' \\) -type f | grep -v '%s/'" % (g_basedir, g_cur_dir))
     (ret, err, out) = _execute("find %s \\( -path '*/lib/*.a' -o -path '*/output/lib/*.a' \\) -type f | grep -v '%s/'" % (g_basedir, g_cur_dir))
     if 0 != ret:
         log_warning('get libs error, base_dir[%s], err[%s]' % (g_basedir, err))

@@ -3,13 +3,15 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
-#include "gperftools/profiler.h"
 #include "ae/ae.h"
 #include "ae/anet.h"
 #include "common.h"
 #include "service.h"
 #include "flag.h"
 #include "offhub/offhub_proxy.h"
+#ifdef _USE_PROF
+#include "gperftools/profiler.h"
+#endif
 
 namespace im {
 
@@ -33,7 +35,11 @@ static int server_cron(aeEventLoop* loop, long long id, void* data) {
     }
     send_message();
     ++g_server.cronloops;
-    return kServerCronInterval;
+    if (0 != g_server.msg_queue.size()) {
+        return kServerShortCronInterval;
+    } else {
+        return kServerCronInterval;
+    }
 }
 
 void init_server() {
@@ -177,7 +183,9 @@ void start_server() {
     assert(aeCreateFileEvent(g_server.loop, fd, AE_READABLE, conn_handler, NULL) 
             != AE_ERR);
     if (FLAGS_enable_profiling) {
+#ifdef _USE_PROF
         ProfilerStart("./haha");  
+#endif
     }
     LOG_INFO << "start server";
     aeMain(g_server.loop);
@@ -186,7 +194,9 @@ void start_server() {
 void stop_server() {
     //TODO
     if (FLAGS_enable_profiling) {
+#ifdef _USE_PROF
         ProfilerStop();  
+#endif
     }
     g_server.stop = true;
 }

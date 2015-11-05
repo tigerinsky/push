@@ -105,20 +105,23 @@ void check_alive() {
         }
         client_t* c = *(next_ptr); 
         long diff = now - c->last_active_time;
-        if (diff < kKeepAliveSec / 2) {
+/*        if (diff < kKeepAliveSec / 2) {
             break;
-        } else if (diff > kKeepAliveSec && PERSIST == c->status) {
+        } else */if (diff > kKeepAliveSec && PERSIST == c->status) {
             next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
-            free_client(c);
-            delete c;
             if (FLAGS_enable_conn_notify) {
                 g_offhub_proxy->conn_off_notify(c->conn_id);
             }
             LOG_INFO << "timeout release conn[" << c->conn_id << "]";
+            free_client(c);
+            delete c;
         } else if (DEAD == c->status) {
             next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
-            free_client(c); 
+            if (FLAGS_enable_conn_notify) {
+                g_offhub_proxy->conn_off_notify(c->conn_id);
+            }
             LOG_INFO << "error release conn[" << c->conn_id << "]";
+            free_client(c); 
         } else {
             ++g_server.check_alive_ptr; 
             ++next_ptr;
@@ -136,7 +139,8 @@ void send_message() {
     int old_size = g_server.msg_queue.size();
     int success = 0;
     int failed = 0;
-    run_within_time (10) {
+    LOG_INFO << "before:" << g_server.msg_queue.size();
+    run_within_time (30) {
         push_msg_t* msg = NULL;
         while (true) {
             if (0 == g_server.msg_queue.size()) {
@@ -149,12 +153,18 @@ void send_message() {
             g_server.msg_queue.pop();
             delete msg;
         }     
+        LOG_INFO << "do: mid[" << msg->request.mid() <<"] size["<< msg->request.conn_id_list_size() <<"] send["<< msg->send <<"]";
         uint64_t conn_id = msg->request.conn_id_list(msg->send++);
         auto ite = g_server.client_map.find(conn_id);
         if (ite == g_server.client_map.end()) {
             LOG_ERROR << "send msg: no suitable conn found, conn_id["
                 << conn_id << "] mid[" << msg->request.mid() << "]"; 
             ++failed;
+            /*
+            if (FLAGS_enable_conn_notify) {
+                g_offhub_proxy->conn_off_notify(conn_id);
+            }
+            */
             continue;
         }
         client_t* c = ite->second;
@@ -174,6 +184,7 @@ void send_message() {
             LOG_ERROR << "send msg: write msg error, ret[" 
                 << ret << "] errno[" << errno << "]";
             ++failed;
+            free_client(c);
             continue;
         }
         ++success;
@@ -182,7 +193,7 @@ void send_message() {
     }
     gettimeofday(&tv_end, NULL);
     LOG_INFO << "send msg stat: total["
-        << (g_server.msg_queue.size() - old_size) << "] cost["
+        << (success + failed) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["
         << success << "] fail[" << failed << "]";
 }
