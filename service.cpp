@@ -196,6 +196,8 @@ void send_message() {
     }
     gettimeofday(&tv_end, NULL);
     STAT_COLLECT(cost, TIME_DIFF(tv_begin, tv_end))
+    STAT_COLLECT(send_success, success)
+    STAT_COLLECT(send_fail, failed)
     LOG_INFO << "send msg stat: total["
         << (success + failed) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["
