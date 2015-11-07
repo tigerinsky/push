@@ -15,6 +15,7 @@ DEFINE_bool(enable_token_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_sign_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_profiling, false, "whether turn on profiling");
 
+DEFINE_string(monitor_file, "./monitor/data", "");
 }
 
 pthread_t g_pid;
@@ -30,7 +31,7 @@ int main (int argc, char** argv) {
     ::google::InitGoogleLogging(argv[0]);
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
-    g_pid = monitor::start_monitor();
+    g_pid = monitor::start_monitor(im::FLAGS_monitor_file);
     im::init_server();
     im::start_server();
     return 0;

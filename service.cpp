@@ -114,6 +114,7 @@ void check_alive() {
                 g_offhub_proxy->conn_off_notify(c->conn_id);
             }
             LOG_INFO << "timeout release conn[" << c->conn_id << "]";
+            STAT_COLLECT(free_connect, 1);
             free_client(c);
             delete c;
         } else if (DEAD == c->status) {
@@ -122,6 +123,7 @@ void check_alive() {
                 g_offhub_proxy->conn_off_notify(c->conn_id);
             }
             LOG_INFO << "error release conn[" << c->conn_id << "]";
+            STAT_COLLECT(free_connect, 1);
             free_client(c); 
         } else {
             ++g_server.check_alive_ptr; 
