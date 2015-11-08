@@ -215,4 +215,11 @@ void stop_server() {
     g_server.stop = true;
 }
 
+void get_server_info(std::string* info) {
+    info->clear();
+    string_appendf(info, "active_client_num:%u\n", g_server.client_map.size());
+    string_appendf(info, "total_client_num:%u\n", g_server.client_num);
+    string_appendf(info, "inhold_push_task_num:%u\n", g_server.msg_queue.size());
+}
+
 }

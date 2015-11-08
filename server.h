@@ -2,7 +2,6 @@
 #define PUSH_SERVER_H
 
 #include <unordered_map>
-#include <forward_list>
 #include <string>
 #include <queue>
 #include "common.h"
@@ -71,7 +70,6 @@ typedef struct server_t {
     aeEventLoop* loop;
     long cronloops;
     std::unordered_map<uint64_t, client_t*> client_map;
-    std::forward_list<client_t*> persistent_clients;
     int client_num;
     client_node_t client_list;
     client_node_t* check_alive_ptr;
@@ -90,12 +88,12 @@ typedef struct server_t {
 } server_t;
 extern server_t g_server;
 
-
 void init_server();
 void start_server();
 void stop_server();
 client_t* create_client();
 void free_client(client_t* c, Status status=STATUS_END);
+void get_server_info(std::string* info);
 
 }
 

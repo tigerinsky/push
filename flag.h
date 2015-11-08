@@ -14,9 +14,6 @@ DECLARE_bool(enable_token_verify);
 DECLARE_bool(enable_sign_verify);
 DECLARE_bool(enable_profiling);
 
-DECLARE_string(monitor_file);
-DECLARE_bool(enable_monitor);
-
 }
 
 #endif

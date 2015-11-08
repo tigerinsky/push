@@ -4,12 +4,15 @@
 #include <queue>
 
 #include "monitor.h"
-#include "flag.h"
+#include "google/gflags.h"
+#include "common.h"
 
 namespace monitor {
 
+DEFINE_string(monitor_file, "", "monitor result output file");
+DEFINE_int32(monitor_interval, 5, "monitor result output interval");
+
 Monitor::Monitor() {
-    _check_time = 0;
 }
 
 Monitor::~Monitor() {
@@ -21,47 +24,33 @@ void Monitor::add_statistic(StatisticIf* s) {
     _statistics.push_back(s);
 }
 
+void Monitor::add_stat_collector(stat_collector func) {
+    _stat_collectors.push_back(func);
+}
+
 void Monitor::start() {
     if (0 == _statistics.size()) {
         return;
     }
-
-    std::queue<uint32_t> sensitivity_list;
-    for (uint32_t i = 0; i < _statistics.size(); ++i) {
-        if (_statistics[i]->sensitivity()) {
-            sensitivity_list.push(_statistics[i]->sensitivity());
-        }
-    }
-    while (1 != sensitivity_list.size()) {
-        uint32_t a = sensitivity_list.front(); 
-        sensitivity_list.pop();
-        uint32_t b = sensitivity_list.front(); 
-        sensitivity_list.pop();
-        uint32_t t = 0;
-        if (a < b) {
-            t = a;
-            a = b;
-            b = t;
-        }
-        while (t = a % b) {
-            a = b;
-            b = t;
-        }
-        sensitivity_list.push(b);
-    }
-    _check_time = sensitivity_list.front();
     _stop = false;;
 }
 
-void Monitor::print_stat(string monitor_file) {
-    std::ofstream myfile (monitor_file);
-    if(!myfile.is_open()) 
+void Monitor::print_stat() {
+    std::ofstream myfile(FLAGS_monitor_file);
+    if(!myfile.is_open()) {
+        LOG_ERROR << "open monitor output file error: "
+            << FLAGS_monitor_file;
         return;
+    }
     std::vector<StatisticIf*>::iterator ite;
+    std::string info;
     for (ite = _statistics.begin(); ite != _statistics.end(); ++ite) {
-        std::string info;
-        (*ite)->get_info(300, info);
-        myfile << info << std::endl;
+        (*ite)->get_info(info);
+        myfile << info;
+    }
+    for (auto& func : _stat_collectors) {
+        (*func)(&info);
+        myfile << info;
     }
     myfile.close();
 }
@@ -74,28 +63,27 @@ void Monitor::stop() {
     _stop = false;
 }
 
-void Monitor::forward_time(uint32_t time) {
+void Monitor::forward() {
     std::vector<StatisticIf*>::iterator ite;
     for (ite = _statistics.begin(); ite != _statistics.end(); ++ite) {
-        (*ite) -> forward_sec(time);
+        (*ite) -> forward();
     }
 }
 
 void* print_stat(void *arg) {
     g_common_monitor->start();
-    int check_time = g_common_monitor->get_check_time_interval();
     while(!g_common_monitor->is_stop()) {
-        
-        sleep(check_time);
-        g_common_monitor->print_stat(*(string*)arg);
-        g_common_monitor->forward_time(check_time);
-
+        sleep(FLAGS_monitor_interval);
+        if (0 != FLAGS_monitor_file.size()) {
+            g_common_monitor->print_stat();
+        }
+        g_common_monitor->forward();
     }
 }
 
-pthread_t start_monitor(string monitor_file) {
+pthread_t start_monitor() {
     pthread_t pid;
-    pthread_create(&pid, NULL, print_stat, &monitor_file);
+    pthread_create(&pid, NULL, print_stat, NULL);
     return pid;
 }
 

@@ -24,10 +24,8 @@ static bool token_verify(const client::ConnectRequest& request) {
     if (0 != strcasecmp(md, request.token().c_str())) {
         LOG_DEBUG << "conn fail:time[" 
             << t << "] "<<size<<"token["<< request.token() <<"] md5[" << md << "]";
-        STAT_COLLECT(connect_fail, 1)
         return false;
     }
-    STAT_COLLECT(connect, 1)
     return true;
 }
 

@@ -2,6 +2,8 @@
 #define PUSH_COMMON_H
 
 #include <sys/time.h>
+#include <stdarg.h>                              // va_list
+#include <string>                                // std::string
 #include "glog/logging.h"
 
 #define LOG_FATAL LOG(FATAL)
@@ -21,6 +23,24 @@ struct timeval nowtime();
 char* md5(const char* data, int size, char* output);
 
 char* sha1(const char* data, int size, char* output);
+
+std::string string_printf(const char* format, ...);
+
+// Write |format| and associated arguments into |output|
+// Returns 0 on success, -1 otherwise.
+int string_printf(std::string* output, const char* fmt, ...);
+
+// Write |format| and associated arguments in form of va_list into |output|.
+// Returns 0 on success, -1 otherwise.
+int string_vprintf(std::string* output, const char* format, va_list args);
+
+// Append |format| and associated arguments to |output|
+// Returns 0 on success, -1 otherwise.
+int string_appendf(std::string* output, const char* format, ...);
+
+// Append |format| and associated arguments in form of va_list to |output|.
+// Returns 0 on success, -1 otherwise.
+int string_vappendf(std::string* output, const char* format, va_list args);
 
 #endif
 

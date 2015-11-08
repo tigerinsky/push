@@ -15,13 +15,12 @@ DEFINE_bool(enable_token_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_sign_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_profiling, false, "whether turn on profiling");
 
-DEFINE_string(monitor_file, "./monitor/data", "");
 }
 
 pthread_t g_pid;
 
 void stop(int) {
-//    pthread_cancel(g_pid);
+    monitor::end_monitor();
     im::stop_server();
 }
 
@@ -30,7 +29,8 @@ int main (int argc, char** argv) {
     ::google::InitGoogleLogging(argv[0]);
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
-    //g_pid = monitor::start_monitor(im::FLAGS_monitor_file);
+    ADD_STAT_COLLECTOR(im::get_server_info);
+    g_pid = monitor::start_monitor();
     im::init_server();
     im::start_server();
     return 0;

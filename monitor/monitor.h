@@ -5,13 +5,21 @@
 #include <unordered_map>
 #include <limits>  
 #include <pthread.h>
+#include "common.h"
 
 namespace monitor {
+
+DECLARE_string(monitor_file);
+DECLARE_int32(monitor_interval);
+
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
       TypeName(const TypeName&);	\
       void operator=(const TypeName&)
 using std::string;
 class StatisticIf;
+
+typedef void (*stat_collector)(std::string* info);
+
 class Monitor {
 public:
     static Monitor* Instance() {
@@ -24,35 +32,25 @@ public:
     ~Monitor();
 
 public:
-    uint32_t get_check_time_interval() {
-        return _check_time;
-    }
-
     void start();
     void add_statistic(StatisticIf* s);
-    void print_stat(string monitor_file);//TODO
+    void add_stat_collector(stat_collector func);
+    void print_stat();//TODO
     void stop();
     bool is_stop();
-    void forward_time(uint32_t time);
+    void forward();
 
 private:
     Monitor();
     friend class std::unique_ptr<Monitor>;
     static std::unique_ptr<Monitor> _instance;
     std::vector<StatisticIf*> _statistics;
-    uint32_t _check_time;
+    std::vector<stat_collector> _stat_collectors;
     bool _stop;
 private:
     DISALLOW_COPY_AND_ASSIGN(Monitor);
 };
 #define g_common_monitor monitor::Monitor::Instance()
-
-#define S_SUM               "COUNT"
-#define S_TOTAL             "TOTAL"
-#define S_AVG               "AVG"
-#define S_AMOUNT_PER_SEC    "AMOUNT_PER_SEC"
-#define S_MAX               "MAX"
-#define S_MIN               "MIN"
 
 const uint8_t kFlagCount = 1 << 0;
 const uint8_t kFlagSum = 1 << 1;
@@ -63,15 +61,13 @@ const uint8_t kFlagAll= kFlagCount | kFlagSum | kFlagMax | kFlagMin;
 
 class StatisticIf {
 public:
-    static const uint32_t kDefaultRange = 300;
-    static const uint32_t kDefaultSensitivity = 5;
+    static const uint32_t kDefaultRange = 10;
 
 public:
     virtual const char* name() = 0;
     virtual uint8_t flag() = 0;
-    virtual uint32_t sensitivity() = 0;
-    virtual void get_info(uint32_t range, std::string& info) = 0;//TODO
-    virtual void forward_sec(uint32_t sec) = 0;
+    virtual void get_info(std::string& info) = 0;//TODO
+    virtual void forward() = 0;
 };
 template<typename Type>
 struct stat_interval_t {
@@ -80,15 +76,18 @@ struct stat_interval_t {
     Type min;
     Type max;
 
-    stat_interval_t():sum(), min(), max() {
-        count = 0;
+    stat_interval_t():
+        count(0),
+        sum(0), 
+        min(std::numeric_limits<Type>::max()), 
+        max(std::numeric_limits<Type>::min()) {
     }
 
     void reset() {
         count = 0;
-        sum = Type();
-        min = Type();
-        max = Type();
+        sum = 0;
+        min = std::numeric_limits<Type>::max();
+        max = std::numeric_limits<Type>::min();
     }
 
 };
@@ -97,7 +96,7 @@ template<typename Type>
 class EternalStatisticImpl : public StatisticIf {
 public:
     EternalStatisticImpl(const char* name,
-                           uint8_t flag = kFlagAll) {
+                         uint8_t flag = kFlagAll) {
         _name = name;
         _flag = flag;
         _interval = new stat_interval_t<Type>();
@@ -110,10 +109,9 @@ public:
 public:
     const char* name() {return _name.c_str(); }
     uint8_t flag() {return _flag;}
-    uint32_t sensitivity() {return 0; }
 
-    void get_info(uint32_t range, std::string& info);
-    void forward_sec(uint32_t sec) {}
+    void get_info(std::string& info);
+    void forward() {}
 
 public:
     void add_value(Type v);
@@ -129,28 +127,35 @@ private:
 };
 
 template<typename Type>
-void EternalStatisticImpl<Type>::get_info(uint32_t range, std::string& info) {
-    std::string s = _name;
+void EternalStatisticImpl<Type>::get_info(std::string& info) {
+    info.clear();
     if (_flag & kFlagCount) {
-        s += "\t";
-        s += std::to_string(_interval->count);
+        string_appendf(&info, 
+                       "%sCount(~): %u\n", 
+                       _name.c_str(), 
+                       _interval->count);
     }
 
     if (_flag & kFlagSum) {
-        s += "\t";
-        s += std::to_string(_interval->sum);
+        string_appendf(&info, 
+                       "%sSum(~): %u\n", 
+                       _name.c_str(), 
+                       _interval->sum);
     }
 
     if (_flag & kFlagMax) {
-        s += "\t";
-        s += std::to_string(_interval->max);
+        string_appendf(&info, 
+                       "%sMax(~): %u\n", 
+                       _name.c_str(), 
+                       _interval->max);
     }
 
     if (_flag & kFlagMin) {
-        s += "\t";
-        s += std::to_string(_interval->min);
+        string_appendf(&info, 
+                       "%sMin(~): %u\n", 
+                       _name.c_str(), 
+                       _interval->min);
     }
-    info.assign(s.c_str());
 }
 
 template<typename Type>
@@ -164,13 +169,11 @@ void EternalStatisticImpl<Type>::add_value(Type v) {
     }
 
     if (_flag & kFlagMax) {
-        if (v > _interval->max)
-            _interval->max = v;
+        _interval->max = std::max(v, _interval->max);
     }
 
     if (_flag & kFlagMin) {
-        if (v < _interval->min)
-            _interval->min = v;
+        _interval->min = std::min(v, _interval->min);
     }
 }
 
@@ -187,18 +190,10 @@ class StatisticImpl : public StatisticIf {
 public:
     StatisticImpl(const char* name, 
                   uint8_t flag = kFlagAll,
-                  uint32_t range = kDefaultRange,
-                  uint32_t sensitivity = kDefaultSensitivity) { 
+                  uint32_t range = kDefaultRange) { 
         _name = name; 
         _flag = flag;
         _range = range;
-        _sensitivity = sensitivity; 
-        _interval_num = (_range + _sensitivity - 1) / _sensitivity + 2;
-        _interval = new stat_interval_t<Type>[_interval_num];
-        _cur_interval = _interval;
-        _head_interval = _interval;
-        _tail_interval = _interval + _interval_num - 1;
-        _sec_count = 0;
     }
 
     virtual ~StatisticImpl() {
@@ -208,54 +203,77 @@ public:
 public:
     const char* name() { return _name.c_str(); }
     uint8_t flag() { return _flag; }
-    uint32_t sensitivity() { return _sensitivity; }
 
-    void forward_sec(uint32_t sec) {
-        _sec_count += sec; 
-        if (0 == _sec_count % _sensitivity) {
-            stat_interval_t<Type>* new_open_interval = _post_interval(_cur_interval); 
-            new_open_interval->reset();
-            _cur_interval = new_open_interval;
-        }
+    void  init () {
+        _data_interval_num 
+            = (_range + FLAGS_monitor_interval - 1) / FLAGS_monitor_interval;
+        _data_range = _data_interval_num * FLAGS_monitor_interval;
+        _interval_num = _data_interval_num + 2;
+        _interval = new stat_interval_t<Type>[_interval_num];
+        _cur_interval = _interval;
+        _head_interval = _interval;
+        _tail_interval = _interval + _interval_num - 1;
     }
 
-    void get_info(uint32_t range, std::string& info) {
-        std::string s = _name;
-        uint32_t range_sec = range < _range ? range : _range;
-        uint32_t range_interval_num = (range_sec + _sensitivity - 1) / _sensitivity;
+    void forward() {
+        stat_interval_t<Type>* new_open_interval = _post_interval(_cur_interval); 
+        new_open_interval->reset();
+        _cur_interval = new_open_interval;
+    }
+
+    void get_info(std::string& info) {
+        info.clear();
         stat_interval_t<Type>* interval = _cur_interval;
+        uint32_t count = 0;
         if (_flag & kFlagCount) {
-            uint32_t count = 0;
-            _calc_count_statistics(interval, range_interval_num, count);
-            s += "\t";
-            s += std::to_string(_interval->count);
+            _calc_count_statistics(interval, count);
+            string_appendf(&info, "%sCount(%u): %u\n", _name.c_str(), _data_range, count);
+            string_appendf(&info, 
+                           "%sNumPerSec(%u): %lf\n", 
+                           _name.c_str(), 
+                           _data_range, 
+                           count * 1.0 /_data_range);
         }
         if (_flag & kFlagMax) {
-            s += "\t";
             Type max;
-            _calc_max_statistics(interval, range_interval_num, max);
-            s += std::to_string(max);
+            _calc_max_statistics(interval, max);
+            string_appendf(&info, 
+                           "%sMax(%u): %s\n", 
+                           _name.c_str(), 
+                           _data_range, 
+                           std::to_string(max).c_str());
         }
         if (_flag & kFlagMin) {
-            s += "\t";
             Type min;
-            _calc_min_statistics(interval, range_interval_num, min);
-            s += std::to_string(min);
+            _calc_min_statistics(interval, min);
+            string_appendf(&info, 
+                           "%sMin(%u): %s\n", 
+                           _name.c_str(), 
+                           _data_range, 
+                           std::to_string(min).c_str());
         }
-
         if (_flag & kFlagSum) {
-            s += "\t";
             Type sum;
-            double amount_per_sec;
-            double avg;
-            _calc_sum_statistics(interval, range_interval_num, _flag & kFlagCount, sum, amount_per_sec, avg);
-            s += std::to_string(sum);
-            s += "\t";
-            s+= std::to_string(amount_per_sec);
-            s += "\t";
-            s+= std::to_string(avg);
+            _calc_sum_statistics(interval, sum);
+            string_appendf(&info,
+                           "%sSum(%u): %s\n",
+                           _name.c_str(),
+                           _data_range,
+                           std::to_string(sum).c_str());
+            string_appendf(&info,
+                           "%sAmountPerSec(%u): %lf\n",
+                           _name.c_str(),
+                           _data_range,
+                           sum * 1.0 / _data_range);
+            if (_flag & kFlagCount) {
+                double avg = 0 == count ? 0 : sum * 1.0 / count;
+                string_appendf(&info,
+                               "%sAmountAvg(%u): %lf\n",
+                               _name.c_str(),
+                               _data_range,
+                               avg); 
+            }
         }
-        info.assign(s.c_str());
     }
 
 public:
@@ -287,30 +305,23 @@ private:
     }
     
     void _calc_count_statistics(stat_interval_t<Type>* si,
-                                uint32_t num,
                                 uint32_t& count);
 
     void _calc_sum_statistics(stat_interval_t<Type>* si,
-                              uint32_t num,
-                              bool has_count,
-                              Type& sum,
-                              double& amount_per_sec,
-                              double& avg);
+                              Type& sum);
 
     void _calc_max_statistics(stat_interval_t<Type>* si,
-                              uint32_t num,
                               Type& max);
 
     void _calc_min_statistics(stat_interval_t<Type>* si,
-                              uint32_t num,
                               Type& min);
 private:
     std::string _name;
     uint8_t _flag;
     uint32_t _range;
-    uint32_t _sensitivity;
+    uint32_t _data_range;
+    uint32_t _data_interval_num;
     uint32_t _interval_num;
-    uint32_t _sec_count;
     stat_interval_t<Type>* _interval;
     stat_interval_t<Type>* _cur_interval;
     stat_interval_t<Type>* _head_interval;
@@ -330,14 +341,10 @@ void StatisticImpl<Type>::add_value(Type v) {
         interval->sum += v;
     }
     if (_flag & kFlagMax) {
-        if (interval->max < v) {
-            interval->max = v;
-        }
+        interval->max = std::max(v, interval->max);
     }
     if (_flag & kFlagMin) {
-        if (interval->min > v) {
-            interval->min = v;
-        }
+        interval->min = std::max(v, interval->min);
     }
 }
 
@@ -351,10 +358,10 @@ void StatisticImpl<Type>::add_count() {
 
 template<typename Type>
 void StatisticImpl<Type>::_calc_count_statistics(stat_interval_t<Type>* si,
-                                                           uint32_t num, uint32_t& result) {
+                                                 uint32_t& result) {
     stat_interval_t<Type>* interval = si;
     uint32_t count = 0;
-    for (uint32_t i = 0; i < num; ++i) {
+    for (uint32_t i = 0; i < _data_interval_num; ++i) {
         interval = _pre_interval(interval); 
         count += interval->count;
     }
@@ -363,41 +370,24 @@ void StatisticImpl<Type>::_calc_count_statistics(stat_interval_t<Type>* si,
 
 template<typename Type>
 void StatisticImpl<Type>::_calc_sum_statistics(stat_interval_t<Type>* si,
-                                                         uint32_t num,
-                                                         bool has_count, 
-                                                         Type& sum,
-                                                         double& amount_per_sec,
-                                                         double& avg) {
+                                               Type& sum) {
     stat_interval_t<Type>* interval = si;
     Type total = 0;
-    for (uint32_t i = 0; i < num; ++i) {
+    for (uint32_t i = 0; i < _data_interval_num; ++i) {
         interval = _pre_interval(interval); 
         total += interval->sum;
     }
     sum = total;
-    amount_per_sec = total * 1.0 / (_sensitivity * num);
-    if (has_count) {
-        uint32_t count = 0;
-        _calc_count_statistics(interval, num, count);
-        if (count != 0) {
-            avg = total * 1.0 / count;
-        } else {
-            avg = 0;
-        }
-    }
 }
 
 template<typename Type>
 void StatisticImpl<Type>::_calc_max_statistics(stat_interval_t<Type>* si,
-                                                         uint32_t num,
-                                                         Type& max) {
+                                               Type& max) {
     stat_interval_t<Type>* interval = _pre_interval(si);
     max = interval->max;
-    for (uint32_t i = 1; i < num; ++i) {
+    for (uint32_t i = 1; i < _data_interval_num; ++i) {
         interval = _pre_interval(interval); 
-        if (interval->max > max) {
-            max = interval->max; 
-        }
+        max = std::max(interval->max, max);
     }
     if (max == std::numeric_limits<Type>::min()) {
         max = 0;
@@ -406,15 +396,12 @@ void StatisticImpl<Type>::_calc_max_statistics(stat_interval_t<Type>* si,
 
 template<typename Type>
 void StatisticImpl<Type>::_calc_min_statistics(stat_interval_t<Type>* si,
-                                                         uint32_t num,
-                                                         Type& min) {
+                                               Type& min) {
     stat_interval_t<Type>* interval = _pre_interval(si);
     min = interval->min;
-    for (uint32_t i = 1; i < num; ++i) {
+    for (uint32_t i = 1; i < _data_interval_num; ++i) {
         interval = _pre_interval(interval); 
-        if (interval->min < min) {
-            min = interval->min; 
-        }
+        min = std::min(interval->min, min);
     }
     if (min == std::numeric_limits<Type>::max()) {
         min = 0;
@@ -429,7 +416,7 @@ public:
 
 };
 
-pthread_t start_monitor(string monitor_file);
+pthread_t start_monitor();
 
 void end_monitor();
 
@@ -457,7 +444,6 @@ void* print_stat(void *arg);
     } \
     using monitor::g_##name;
 
-
 #define DECLARE_ETERNAL_STATISTIC_INT32(name) \
     DECLARE_ETERNAL_STATISTIC(name, int)
 
@@ -469,11 +455,11 @@ void* print_stat(void *arg);
 
 /*****************   definers   ***********/
 #define DEFINE_STATISTIC(name, type, arg...) \
-        namespace monitor {\
-                    StatisticImpl<type> g_##name(#name, ##arg); \
-                    static StatisticRegister \
-                        register_##name(&g_##name); \
-                } \
+    namespace monitor {\
+        StatisticImpl<type> g_##name(#name, ##arg); \
+        static StatisticRegister \
+        register_##name(&g_##name); \
+    } \
     using monitor::g_##name;
 
 #define DEFINE_STATISTIC_INT32(name, arg...) \
@@ -485,11 +471,11 @@ void* print_stat(void *arg);
 #define DEFINE_STATISTIC_DOUBLE(name, arg...) \
         DEFINE_STATISTIC(name, double, ##arg)
 #define DEFINE_ETERNAL_STATISTIC(name, type, flag) \
-        namespace monitor{\
-                    EternalStatisticImpl<type> g_##name(#name, flag); \
-                    static StatisticRegister \
-                        register_##name(&g_##name); \
-                } \
+    namespace monitor{\
+        EternalStatisticImpl<type> g_##name(#name, flag); \
+        static StatisticRegister \
+        register_##name(&g_##name); \
+    } \
     using monitor::g_##name;
 
 #define DEFINE_ETERNAL_STATISTIC_INT32(name, flag) \
@@ -501,16 +487,21 @@ void* print_stat(void *arg);
 #define DEFINE_ETERNAL_STATISTIC_DOUBLE(name, flag) \
         DEFINE_ETERNAL_STATISTIC(name, double, flag)
 
+#define ADD_STAT_COLLECTOR(func) \
+    do { \
+        g_common_monitor->add_stat_collector(func); \
+    } while (0);
+
 /*********   methods   *********/
 #define STAT_COLLECT(name, value) \
-        do { \
-                    g_##name.add_value(value); \
-                } while (0);
+    do { \
+        g_##name.add_value(value); \
+    } while (0);
 
 #define STAT_COLLECT_COUNT(name) \
-        do { \
-                    g_##name.add_count(); \
-                } while (0);
+    do { \
+        g_##name.add_count(); \
+    } while (0);
 
 }//namespace monitor
 #endif
