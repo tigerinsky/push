@@ -10,6 +10,7 @@ namespace monitor {
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
       TypeName(const TypeName&);	\
       void operator=(const TypeName&)
+using std::string;
 class StatisticIf;
 class Monitor {
 public:
@@ -29,7 +30,7 @@ public:
 
     void start();
     void add_statistic(StatisticIf* s);
-    void print_stat();//TODO
+    void print_stat(string monitor_file);//TODO
     void stop();
     bool is_stop();
     void forward_time(uint32_t time);
@@ -428,7 +429,7 @@ public:
 
 };
 
-pthread_t start_monitor();
+pthread_t start_monitor(string monitor_file);
 
 void end_monitor();
 

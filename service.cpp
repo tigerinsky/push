@@ -119,6 +119,7 @@ void check_alive() {
             }
             LOG_INFO << "error release conn[" << c->conn_id << "] client_id["
                 << c->id << "]";
+            STAT_COLLECT(free_connect, 1);
             free_client(c); 
         } else if (diff > kKeepAliveSec && PERSIST == c->status) {
             g_server.check_alive_ptr->next = next_ptr->next;
@@ -135,6 +136,7 @@ void check_alive() {
                 << c->conn_id << "] last_active_time["
                 << c->last_active_time << "] client_id["
                 << c->id <<"]";
+            STAT_COLLECT(free_connect, 1);
             free_client(c, OFFLINE);
         } else {
             g_server.check_alive_ptr = next_ptr;
@@ -207,6 +209,8 @@ void send_message() {
     }
     gettimeofday(&tv_end, NULL);
     STAT_COLLECT(cost, TIME_DIFF(tv_begin, tv_end))
+    STAT_COLLECT(send_success, success)
+    STAT_COLLECT(send_fail, failed)
     LOG_INFO << "send msg stat: total["
         << (success + failed) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["

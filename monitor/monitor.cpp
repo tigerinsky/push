@@ -1,11 +1,15 @@
 #include <iostream>
+#include <fstream>
 #include <unistd.h>
 #include <queue>
+
 #include "monitor.h"
+#include "flag.h"
 
 namespace monitor {
+
 Monitor::Monitor() {
-    _check_time = 0;//TODO gflags
+    _check_time = 0;
 }
 
 Monitor::~Monitor() {
@@ -49,14 +53,17 @@ void Monitor::start() {
     _stop = false;;
 }
 
-void Monitor::print_stat() {
+void Monitor::print_stat(string monitor_file) {
+    std::ofstream myfile (monitor_file);
+    if(!myfile.is_open()) 
+        return;
     std::vector<StatisticIf*>::iterator ite;
     for (ite = _statistics.begin(); ite != _statistics.end(); ++ite) {
         std::string info;
         (*ite)->get_info(300, info);
-        std::cout << info  << std::endl;
+        myfile << info << std::endl;
     }
-
+    myfile.close();
 }
 
 bool Monitor::is_stop() {
@@ -80,15 +87,15 @@ void* print_stat(void *arg) {
     while(!g_common_monitor->is_stop()) {
         
         sleep(check_time);
-        g_common_monitor->print_stat();
+        g_common_monitor->print_stat(*(string*)arg);
         g_common_monitor->forward_time(check_time);
 
     }
 }
 
-pthread_t start_monitor() {
+pthread_t start_monitor(string monitor_file) {
     pthread_t pid;
-    pthread_create(&pid, NULL, print_stat, NULL);
+    pthread_create(&pid, NULL, print_stat, &monitor_file);
     return pid;
 }
 
