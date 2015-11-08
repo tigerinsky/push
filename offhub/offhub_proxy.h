@@ -14,6 +14,7 @@ public:
 public:
     void conn_off_notify(uint64_t conn_id);
     void conn_on_notify(uint64_t conn_id);
+    void conn_not_exist_notify(uint64_t conn_id);
 
 private:
     std::string _host;

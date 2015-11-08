@@ -77,14 +77,23 @@ void ConnectHandler::handle(client_t* c) {
     if (is_valid(request)) {
         c->conn_id = strtoull(request.conn_id().c_str(), NULL, 10);
         c->status = PERSIST;
-        g_server.client_map[c->conn_id] = c;
-        g_server.persistent_clients.push_front(c);
-        response.set_err_code(OK);
-        LOG_INFO << "new connect: conn_id[" << request.conn_id()
-            << "] token[" << request.token() 
-            << "] sign[" << request.sign() << "]";
-        if (FLAGS_enable_conn_notify) {
-            g_offhub_proxy->conn_on_notify(c->conn_id);
+        auto ite = g_server.client_map.find(c->conn_id);
+        if (ite != g_server.client_map.end()
+                && ite->second->id == c->id) {
+            response.set_err_code(OK);
+        } else {
+            g_server.client_map[c->conn_id] = c;
+            client_node_t* new_node 
+                = new client_node_t(c, g_server.client_list.next);
+            g_server.client_list.next = new_node;
+            ++g_server.client_num;
+            response.set_err_code(OK);
+            LOG_INFO << "new connect: conn_id[" << request.conn_id()
+                << "] client_id[" << c->id << "] token[" << request.token() 
+                << "] sign[" << request.sign() << "]";
+            if (FLAGS_enable_conn_notify) {
+                g_offhub_proxy->conn_on_notify(c->conn_id);
+            }
         }
     } else {
         LOG_WARN << "make connect failed: conn_id[" << request.conn_id()

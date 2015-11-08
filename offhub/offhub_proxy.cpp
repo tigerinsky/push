@@ -49,5 +49,23 @@ void OffhubProxy::conn_on_notify(uint64_t conn_id) {
     }
 }
 
+void OffhubProxy::conn_not_exist_notify(uint64_t conn_id) {
+    boost::shared_ptr<TTransport> socket(new TSocket(_host.c_str(), _port));
+    boost::shared_ptr<TTransport> transport(new TFramedTransport(socket));
+    boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+    lj::PostServiceClient client(protocol);
+    try {
+        transport->open();
+        lj::ConnectOnOfflineRequest request;
+        request.connect_id = conn_id;
+        request.status = 2;
+        client.ConnectOnOffline(request);
+        transport->close();
+    } catch (TException& tx) {
+        LOG_ERROR << "offhub conn on notify fail, conn_id["
+            << conn_id << "] what[" << tx.what() << "]";
+    }
+}
+
 }
 

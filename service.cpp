@@ -84,49 +84,62 @@ int service(client_t* c) {
             << "] id[" << c->request.id
             << "] method[" << c->request.method 
             << "] input[" << c->input_size
-            << "] output[" << c->output_buf.size() << "]";
+            << "] output[" << c->output_buf.size() 
+            << "] conn_id[" << c->conn_id 
+            << "] client_id[" << c->id <<"]";
     } 
     return 0;
 }
 
 void check_alive() {
-    if (g_server.persistent_clients.empty()) {
+    if (0 == g_server.client_num) {
         return; 
     }
-    if (g_server.persistent_clients.end() == g_server.check_alive_ptr) {
-        g_server.check_alive_ptr = g_server.persistent_clients.before_begin(); 
+    if (NULL == g_server.check_alive_ptr) {
+        g_server.check_alive_ptr = &(g_server.client_list); 
     }
     long now = time(NULL);
-    auto next_ptr = g_server.check_alive_ptr;
-    ++next_ptr;
+    client_node_t* next_ptr = g_server.check_alive_ptr->next;
     for (int i = 0; i < kCheckAliveNum; ++i) {
-        if (g_server.persistent_clients.end() == next_ptr) {
-            g_server.check_alive_ptr = g_server.persistent_clients.end(); 
+        if (NULL == next_ptr) {
+            g_server.check_alive_ptr = NULL; 
             break;
         }
-        client_t* c = *(next_ptr); 
+        client_t* c = next_ptr->client; 
         long diff = now - c->last_active_time;
-/*        if (diff < kKeepAliveSec / 2) {
+        if (diff < kKeepAliveSec / 10) {
             break;
-        } else */if (diff > kKeepAliveSec && PERSIST == c->status) {
-            next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
-            if (FLAGS_enable_conn_notify) {
+        } else if (ERROR == c->status) {
+            g_server.check_alive_ptr->next = next_ptr->next;
+            delete next_ptr;
+            --g_server.client_num;
+            if (FLAGS_enable_conn_notify
+                    && g_server.client_map.find(c->conn_id) == g_server.client_map.end()) {
                 g_offhub_proxy->conn_off_notify(c->conn_id);
             }
-            LOG_INFO << "timeout release conn[" << c->conn_id << "]";
-            free_client(c);
-            delete c;
-        } else if (DEAD == c->status) {
-            next_ptr = g_server.persistent_clients.erase_after(g_server.check_alive_ptr);
-            if (FLAGS_enable_conn_notify) {
-                g_offhub_proxy->conn_off_notify(c->conn_id);
-            }
-            LOG_INFO << "error release conn[" << c->conn_id << "]";
+            LOG_INFO << "error release conn[" << c->conn_id << "] client_id["
+                << c->id << "]";
             free_client(c); 
+        } else if (diff > kKeepAliveSec && PERSIST == c->status) {
+            g_server.check_alive_ptr->next = next_ptr->next;
+            delete next_ptr;
+            --g_server.client_num;
+            if (FLAGS_enable_conn_notify) {
+                auto ite = g_server.client_map.find(c->conn_id);
+                if (ite == g_server.client_map.end()
+                        || ite->second->id == c->id) {
+                    g_offhub_proxy->conn_off_notify(c->conn_id);
+                }
+            }
+            LOG_INFO << "timeout release conn[" 
+                << c->conn_id << "] last_active_time["
+                << c->last_active_time << "] client_id["
+                << c->id <<"]";
+            free_client(c, OFFLINE);
         } else {
-            ++g_server.check_alive_ptr; 
-            ++next_ptr;
+            g_server.check_alive_ptr = next_ptr;
         }
+        next_ptr = g_server.check_alive_ptr->next;
     }
 }
 
@@ -140,7 +153,7 @@ void send_message() {
     int old_size = g_server.msg_queue.size();
     int success = 0;
     int failed = 0;
-    LOG_INFO << "before:" << g_server.msg_queue.size();
+    LOG_DEBUG << "msg in queue:" << g_server.msg_queue.size();
     run_within_time (30) {
         push_msg_t* msg = NULL;
         while (true) {
@@ -154,18 +167,16 @@ void send_message() {
             g_server.msg_queue.pop();
             delete msg;
         }     
-        LOG_INFO << "do: mid[" << msg->request.mid() <<"] size["<< msg->request.conn_id_list_size() <<"] send["<< msg->send <<"]";
+        LOG_DEBUG << "do: mid[" << msg->request.mid() <<"] size["<< msg->request.conn_id_list_size() <<"] send["<< msg->send <<"]";
         uint64_t conn_id = msg->request.conn_id_list(msg->send++);
         auto ite = g_server.client_map.find(conn_id);
         if (ite == g_server.client_map.end()) {
             LOG_ERROR << "send msg: no suitable conn found, conn_id["
                 << conn_id << "] mid[" << msg->request.mid() << "]"; 
             ++failed;
-            /*
             if (FLAGS_enable_conn_notify) {
-                g_offhub_proxy->conn_off_notify(conn_id);
+                g_offhub_proxy->conn_not_exist_notify(conn_id);
             }
-            */
             continue;
         }
         client_t* c = ite->second;
@@ -176,16 +187,18 @@ void send_message() {
                                 msg->request.mid());
         if (0 != ret) {
             LOG_ERROR << "send msg: encode msg error, conn_id["
-                << conn_id << "] mid[" << msg->request.mid() << "]"; 
+                << conn_id << "] client_id[" << c->id << "]mid[" 
+                << msg->request.mid() << "]"; 
             ++failed;
             continue;
         }
         ret = anetWrite(c->fd, (char*)(c->output_buf.c_str()), c->output_buf.size());
         if (ret != c->output_buf.size()) {
             LOG_ERROR << "send msg: write msg error, ret[" 
-                << ret << "] errno[" << errno << "]";
+                << ret << "] errno[" << errno << "] conn_id["
+                << c->conn_id << "] id[" << c->id << "]";
             ++failed;
-            free_client(c);
+            free_client(c, ERROR);
             continue;
         }
         ++success;

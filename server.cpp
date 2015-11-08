@@ -63,7 +63,7 @@ client_t* create_client() {
     return c;
 }
 
-void free_client(client_t* c) {
+void free_client(client_t* c, Status status) {
     if (c->fd > 0) {
         aeDeleteFileEvent(g_server.loop, c->fd, AE_READABLE);
         aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
@@ -71,16 +71,23 @@ void free_client(client_t* c) {
         c->fd = -1;
     }
     switch (c->status) {
-    case NONE_PERSIST:
-    case DEAD:
-        delete c;
-        break;
     case PERSIST:
         g_server.client_map.erase(c->conn_id);
-        c->status = DEAD;
+        if (OFFLINE == status) {
+            delete c;
+        } else {
+            c->status = status;
+        }
+        break;
+    case ERROR:
+    case NONE_PERSIST:
+        delete c;
         break;
     default:
-        LOG_WARN << "server panic: unexpecting status[" << c->status <<"]";
+        LOG_WARN << "server panic: unexpecting status[" 
+            << c->status << "] conn_id["
+            << c->conn_id << "] client_id["
+            << c->id <<"]";
     }
 }
 
@@ -96,8 +103,13 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
             if (EAGAIN == errno) {
                 return;  
             } else {
-                //err 
-                free_client(c);
+                LOG_ERROR << "write response error, conn_id["
+                    << c->conn_id << "] client_id[" << c->id << "]";
+                if (NONE_PERSIST == c->status) {
+                    free_client(c);
+                } else {
+                    free_client(c, ERROR);
+                }
                 return;
             }
         }
@@ -117,27 +129,29 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
     client_t* c = (client_t*)data;
     int ret = read(fd, c->input_buf, kProtoIOBufLen);
     if (0 == ret) {
-        //client close connection
-        free_client(c);
+        LOG_INFO << "client close connect, conn_id[" << c->conn_id << "] client_id["
+                << c->id << "]";
+        free_client(c, ERROR);
         return;
     } else if (ret < 0) {
         if (EAGAIN == errno) {
             return; 
         } else {
-        //  err 
-            free_client(c);
+            LOG_ERROR << "client read error, conn_id[" << c->conn_id << "] client_id["
+                << c->id << "]";
+            free_client(c, ERROR);
             return; 
         }
     }
     c->input_size = ret;
     ret = service(c);
     if (0 != ret) {
-        free_client(c); 
-        return;
+   //     free_client(c, ERROR); 
+   //     return;
     }
     if (c->output_buf.size() > 0) {
         if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
-            free_client(c);
+            free_client(c, ERROR);
         }
     } else {
         if (NONE_PERSIST == c->status) {
