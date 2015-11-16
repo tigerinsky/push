@@ -2,6 +2,7 @@
 #include "push_message.pb.h"
 #include "client_push.pb.h"
 #include "common.h"
+#include "push_declare.h"
 
 namespace im {
 
@@ -29,6 +30,7 @@ void SendMessageHandler::handle(client_t* c) {
     }
     g_server.msg_queue.push(msg);
     LOG_INFO << "get send request: num["<< msg->request.conn_id_list_size() <<"]";
+    STAT_COLLECT(push_request, msg->request.conn_id_list_size());
     response.set_err_code(OK);
 end:
     notify_msg.release_msg();

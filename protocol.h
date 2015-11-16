@@ -31,7 +31,7 @@ public:
 public:
     static const int kOk = 0;
     static const int kNotReady = 1;
-    static const int kError = 1;
+    static const int kError = 2;
 
 public:
     static void init();

@@ -12,17 +12,19 @@ DEFINE_string(h, "127.0.0.1", "");
 DEFINE_int32(p, 8888, "");
 DEFINE_string(conn_id, "1", "");
 DEFINE_string(token, "nvshenzuipiaoliang", "");
+DEFINE_string(sign, "nvshenzuipiaoliang", "");
 
 using namespace im;
 
 int g_fd;
 pthread_t g_hi_thread;
 
-int connect(const std::string& conn_id, const std::string& token) {
+int connect(const std::string& conn_id, const std::string& token, const std::string& sign) {
     client::ConnectRequest conn_request;
     client::ConnectResponse conn_response;
     conn_request.set_conn_id(conn_id);
     conn_request.set_token(token);
+    conn_request.set_sign(sign);
     if (send(g_fd, "connect", conn_request)) {
         LOG_WARN <<"send conn request error";
         return 1;
@@ -73,7 +75,7 @@ int main (int argc, char** argv) {
     g_fd = ret;
     anetEnableTcpNoDelay(NULL, g_fd); 
 
-    if (connect(FLAGS_conn_id, FLAGS_token)) {
+    if (connect(FLAGS_conn_id, FLAGS_token, FLAGS_sign)) {
         LOG_ERROR << "build connect error, conn_id["
             << FLAGS_conn_id << "] token[" << FLAGS_token << "]"; 
         return 1;

@@ -47,6 +47,7 @@ typedef struct client_t {
 
     client_t() {
         id = 0;
+        conn_id = 0;
         status = NONE_PERSIST;
         fd = -1; 
         protocol = NULL;

@@ -65,7 +65,9 @@ void service(client_t* c) {
                     << c->id << "] conn_id[" 
                     << c->conn_id << "] ip["
                     << c->ip << "]";
-                free_client(c, ERROR); 
+                if (PERSIST == c->status) {
+                    free_client(c, ERROR); 
+                }
                 return;
             }
             c->protocol = Protocol::get_protocol(c->header.version);
@@ -147,6 +149,7 @@ void check_alive() {
                     && g_server.client_map.find(c->conn_id) == g_server.client_map.end()) {
                 g_offhub_proxy->conn_off_notify(c->conn_id);
             }
+            STAT_COLLECT_COUNT(error_release);
             LOG_INFO << "error release conn[" << c->conn_id << "] client_id["
                 << c->id << "]";
             free_client(c); 
@@ -189,7 +192,7 @@ void send_message() {
         push_msg_t* msg = NULL;
         while (true) {
             if (0 == g_server.msg_queue.size()) {
-                return; 
+                goto end; 
             }
             msg = g_server.msg_queue.front(); 
             if (msg->send != msg->request.conn_id_list_size()) {
@@ -223,7 +226,9 @@ void send_message() {
             c->response.release_content();
             continue;
         }
-        ret = c->writer->nonblock_write(false);
+        LOG_DEBUG << "left:" << c->writer->left();
+        ret = c->writer->nonblock_write(true);
+        LOG_DEBUG << "left2:" << c->writer->left();
         if (ret != SocketWriter::kOk) {
             LOG_ERROR << "send msg: write msg error, ret[" 
                 << ret << "] errno[" << errno << "] conn_id["
@@ -238,8 +243,12 @@ void send_message() {
         LOG_INFO << "send msg: finish, conn_id["
             << conn_id << "] mid[" << msg->request.mid() << "]";
     }
+end:
     gettimeofday(&tv_end, NULL);
     STAT_COLLECT(send_fail, failed)
+    STAT_COLLECT(send_success, success)
+    STAT_COLLECT(all_send_fail, failed)
+    STAT_COLLECT(all_send_success, success)
     LOG_INFO << "send msg stat: total["
         << (success + failed) << "] cost["
         << TIME_DIFF(tv_begin, tv_end) << "] succ["
