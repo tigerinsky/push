@@ -7,6 +7,7 @@
 #include "common.h"
 #include "protocol.h"
 #include "push_message.pb.h"
+#include "msg.pb.h"
 
 struct aeEventLoop;
 
@@ -28,15 +29,19 @@ enum Status {
     STATUS_END
 };
 
+class SocketReader;
+
 typedef struct client_t {
     uint32_t id;
     uint64_t conn_id;
+    char ip[kNetIPStrLen];
     int fd;
-    int input_size;
-    char input_buf[kProtoIOBufLen];
-    message_t request;
-    std::string response;
-    std::string output_buf;
+    SocketReader* reader;
+    SocketWriter* writer;
+    Protocol* protocol;
+    message_header_t header;
+    im::Msg request;
+    im::Msg response;
     long last_active_time;
     Status status;
 
@@ -44,7 +49,19 @@ typedef struct client_t {
         id = 0;
         status = NONE_PERSIST;
         fd = -1; 
+        protocol = NULL;
         last_active_time = 0;
+        reader = NULL;
+        writer = NULL;
+    }
+
+    ~client_t() {
+        if (reader) {
+            delete reader; 
+        } 
+        if (writer) {
+            delete writer; 
+        }
     }
 } client_t;
 

@@ -12,13 +12,11 @@ namespace im {
 #define DROP_CONN_CMD "drop_connect"
 #define RE_CONN_CMD "re_connect"
 
-extern Protocol g_protocol;
-
 struct client_t;
 
 void init_service();
 
-int service(client_t* client);
+void service(client_t* client);
 
 void check_alive();
 

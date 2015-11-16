@@ -32,6 +32,9 @@ void Monitor::start() {
     if (0 == _statistics.size()) {
         return;
     }
+    for (auto& ite : _statistics) {
+        ite->init(); 
+    }
     _stop = false;;
 }
 

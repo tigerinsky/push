@@ -30,7 +30,7 @@ static bool token_verify(const client::ConnectRequest& request) {
 }
 
 static bool sign_verify(const client::ConnectRequest& request) {
-    char sha_md[20];
+    char sha_md[41];
     char md5_md[33];
     char buf[256];
     int size = snprintf(buf, 
@@ -38,7 +38,7 @@ static bool sign_verify(const client::ConnectRequest& request) {
                         "conn_id=%s&token=%s", 
                         request.conn_id().c_str(),
                         request.token().c_str());
-    md5(sha1(buf, size, sha_md), 20, md5_md);
+    md5(sha1(buf, size, sha_md), 40, md5_md);
     if (0 != strcasecmp(md5_md, request.sign().c_str())) {
         LOG_DEBUG << "conn fail: sign_str[" 
             << buf << "] sign[" << request.sign() << "]";
@@ -66,8 +66,9 @@ static bool is_valid(const client::ConnectRequest& request) {
 void ConnectHandler::handle(client_t* c) {
     client::ConnectRequest request;
     client::ConnectResponse response;
-    c->response.clear();
-    if (!request.ParseFromArray(c->request.req_proto, c->request.req_proto_size)) {
+    c->response.Clear();
+    if (!request.ParseFromArray(c->request.content().c_str(), 
+                                c->request.content().size())) {
         LOG_ERROR << "connect handler parse error";
         response.set_err_code(ILLEGAL_REQUEST);
         goto end;
@@ -103,8 +104,8 @@ void ConnectHandler::handle(client_t* c) {
         response.set_err_code(INVALID_CONNECTION); 
     }
 end:    
-    if (!response.SerializeToString(&(c->response))) {
-        c->response.clear();
+    if (!response.SerializeToString(c->response.mutable_content())) {
+        c->response.Clear();
     }
 }
 

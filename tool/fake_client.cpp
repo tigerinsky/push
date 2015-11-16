@@ -27,12 +27,13 @@ int connect(const std::string& conn_id, const std::string& token) {
         LOG_WARN <<"send conn request error";
         return 1;
     }
-    message_t response;
+    Msg response;
     if (receive(g_fd, &response)) {
         LOG_WARN << "read conn response error";
         return 2;
     }
-    if (!conn_response.ParseFromArray(response.req_proto, response.req_proto_size)) {
+    if (!conn_response.ParseFromArray(response.content().c_str(), 
+                                      response.content().size())) {
         LOG_WARN << "parse conn response error"; 
         return 3;
     }
@@ -83,46 +84,46 @@ int main (int argc, char** argv) {
         return 2;
     }
     char buf[10240];
-    message_t message;
+    Msg message;
     while (true) {
         ret = receive(g_fd, &message);
         if (ret) {
             LOG_ERROR << "read error";
             break; 
         }
-        if (0 == strcmp(message.method, "hi")) {
+        if (0 == strcmp(message.name().c_str(), "hi")) {
             client::HiResponse hi_response; 
-            if (!hi_response.ParseFromArray(message.req_proto, 
-                                            message.req_proto_size)) {
+            if (!hi_response.ParseFromArray(message.content().c_str(), 
+                                            message.content().size())) {
                 LOG_ERROR << "parse hi response error";            
                 break;
             }
             LOG_INFO << "receive hi response, msg["<<hi_response.msg()<<"]";
-        } else if (0 == strcmp(message.method, "notify_message")) {
+        } else if (0 == strcmp(message.name().c_str(), "notify_message")) {
             client::NotifyMessageRequest notify_req;
-            if (!notify_req.ParseFromArray(message.req_proto,
-                                           message.req_proto_size)) {
+            if (!notify_req.ParseFromArray(message.content().c_str(),
+                                           message.content().size())) {
                 LOG_ERROR << "parse notify req error"; 
                 break;
             }
             LOG_INFO << "receive message: id["
-                << message.id <<"] data["<<notify_req.DebugString()<<"]";
+                << message.mid() <<"] data["<<notify_req.DebugString()<<"]";
             client::NotifyMessageResponse response;
             response.set_err_code(OK);
-            if (send(g_fd, "notify_message", response, message.id)) {
-                LOG_ERROR << "send notify ack error, mid["<< message.id << "]"; 
+            if (send(g_fd, "notify_message", response, message.mid())) {
+                LOG_ERROR << "send notify ack error, mid["<< message.mid() << "]"; 
                 break;
             } 
-        } else if (0 == strcmp(message.method, "re_connect")) {
+        } else if (0 == strcmp(message.name().c_str(), "re_connect")) {
             client::ReConnectRequest re_conn_req; 
-            if (!re_conn_req.ParseFromArray(message.req_proto,
-                                            message.req_proto_size)) {
+            if (!re_conn_req.ParseFromArray(message.content().c_str(),
+                                            message.content().size())) {
                 LOG_ERROR << "parse reconn req error"; 
                 break;
             }
             LOG_INFO << "receive reconn: " << re_conn_req.DebugString();
         } else {
-            LOG_WARN << "read unknown data, method["<<message.method<<"]"; 
+            LOG_WARN << "read unknown data, method["<<message.content().c_str()<<"]"; 
         }
     }
 

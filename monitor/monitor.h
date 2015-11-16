@@ -65,6 +65,7 @@ public:
 
 public:
     virtual const char* name() = 0;
+    virtual void init() = 0;
     virtual uint8_t flag() = 0;
     virtual void get_info(std::string& info) = 0;//TODO
     virtual void forward() = 0;
@@ -108,6 +109,7 @@ public:
 
 public:
     const char* name() {return _name.c_str(); }
+    void init () {}
     uint8_t flag() {return _flag;}
 
     void get_info(std::string& info);

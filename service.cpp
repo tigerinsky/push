@@ -1,5 +1,6 @@
 #include "service.h"
 #include <sys/time.h>
+#include <arpa/inet.h>
 #include <unordered_map>
 #include "server.h"
 #include "handler/handler.h"
@@ -9,6 +10,7 @@
 #include "offhub/offhub_proxy.h"
 #include "flag.h"
 #include "push_declare.h"
+#include "buffer.h"
 
 namespace im {
 
@@ -22,7 +24,6 @@ typedef struct handler_t {
 } handler_t;
 
 std::unordered_map<std::string, handler_t*> g_handler_map;
-Protocol g_protocol;
 
 void init_service() {
 #define ADD_HANDLER(name, handler) do { \
@@ -33,14 +34,14 @@ void init_service() {
     ADD_HANDLER(NOTIFY_MSG_CMD, ClientPushResponseHandler);
     ADD_HANDLER(SEND_MSG_CMD, SendMessageHandler);
     ADD_HANDLER(DROP_CONN_CMD, DropConnectHandler);
+    Protocol::init();
 }
 
 int service2(client_t* c) {
-    int ret = -1;
-    message_t& request = c->request;
-    auto ite = g_handler_map.find(request.method);
+    Msg& request = c->request;
+    auto ite = g_handler_map.find(request.name());
     if (g_handler_map.end() == ite) {
-        LOG_ERROR << "service: no matching handler, method["<< request.method <<"]";
+        LOG_ERROR << "service: no matching handler, method["<< request.name() <<"]";
         return 1; 
     }
     handler_t* handler = ite->second;
@@ -48,47 +49,76 @@ int service2(client_t* c) {
     return 0;
 }
 
-int service(client_t* c) {
+void service(client_t* c) {
     int ret = -1;
-    char* p_input = c->input_buf;
-    int left_size = c->input_size;
-    while (left_size > sizeof(message_header_t)) {
+    char* p = NULL;
+    while (true) {
         struct timeval tv_begin, tv_end;
         gettimeofday(&tv_begin, NULL);
         c->last_active_time = tv_begin.tv_sec;
-        ret = g_protocol.decode(p_input, left_size, &(c->request)); 
-        if (0 > ret) {
-            LOG_ERROR << "service: decode request error, ret[" << ret << "]"; 
-            return 1;
+        if (NULL == c->protocol) {
+            ret = Protocol::read_header(c->reader, &(c->header));
+            if (Protocol::kNotReady == ret) {
+                break; 
+            } else if (Protocol::kError == ret) {
+                LOG_ERROR << "service: parse header error, client_id["
+                    << c->id << "] conn_id[" 
+                    << c->conn_id << "] ip["
+                    << c->ip << "]";
+                free_client(c, ERROR); 
+                return;
+            }
+            c->protocol = Protocol::get_protocol(c->header.version);
+            if (NULL == c->protocol) {
+                LOG_ERROR << "service: get protocol error, version["
+                    << c->header.version << "] data_size["
+                    << c->header.proto_size << "]" ;
+                c->reader->mark_garbage(c->header.proto_size);
+                break;
+            }
+        } 
+        ret = c->protocol->decode(c->header, 
+                                  c->reader,
+                                  &(c->request));
+        if (Protocol::kNotReady == ret) {
+            break;
+        } else if (Protocol::kError == ret) {
+            LOG_ERROR << "service: decode error, conn_id["
+                << c->conn_id <<"] client_id[" << c->id << "]"; 
+            free_client(c, ERROR);
+            return;
         }
-        p_input += ret;
-        left_size -= ret;
         ret = service2(c);
         if (ret) {
-            LOG_ERROR << "service: handle request error, ret[" << ret << "]"; 
-            return 1; 
+            LOG_ERROR << "service: handle request error, conn_id["
+                << c->conn_id << "] client_id[" << c->id <<"]"; 
+            return; 
         }
-        if (c->response.size() > 0) {
-            ret = g_protocol.encode(c->request.method, 
-                                    c->response, 
-                                    &(c->output_buf), 
-                                    c->request.id);
-            if (ret) {
-                LOG_ERROR << "service: encode response error, ret["<< ret <<"]";
-                return 4; 
+        if (c->response.content().size() > 0) {
+            c->response.set_mid(c->request.mid());
+            c->response.set_name(c->request.name());
+            ret = c->protocol->encode(c->response, c->writer);
+            if (Protocol::kError == ret) {
+                LOG_ERROR << "service: encode response error, conn_id["
+                    << c->conn_id << "] client_id["
+                    << c->id << "]";
+                free_client(c, ERROR);
+                return; 
             }
         }
         gettimeofday(&tv_end, NULL);
         LOG_INFO << "service: cost[" << TIME_DIFF(tv_begin, tv_end)
-            << "] version[" <<  (int)(c->request.version)
-            << "] id[" << c->request.id
-            << "] method[" << c->request.method 
-            << "] input[" << c->input_size
-            << "] output[" << c->output_buf.size() 
+            << "] version[" <<  (int)(c->header.version)
+            << "] id[" << c->request.mid()
+            << "] method[" << c->request.name()
+            << "] input[" << c->header.proto_size
+            << "] output[" << c->response.content().size() 
             << "] conn_id[" << c->conn_id 
             << "] client_id[" << c->id <<"]";
-    } 
-    return 0;
+        c->protocol = NULL;
+    }
+    c->reader->adapt();
+    return;
 }
 
 void check_alive() {
@@ -152,6 +182,7 @@ void send_message() {
     gettimeofday(&tv_begin, NULL);
     int old_size = g_server.msg_queue.size();
     int success = 0;
+    Protocol* protocol = Protocol::get_protocol(1);
     int failed = 0;
     LOG_DEBUG << "msg in queue:" << g_server.msg_queue.size();
     run_within_time (30) {
@@ -180,27 +211,29 @@ void send_message() {
             continue;
         }
         client_t* c = ite->second;
-        c->output_buf.clear();
-        ret = g_protocol.encode(NOTIFY_MSG_CMD, 
-                                msg->data, 
-                                &(c->output_buf), 
-                                msg->request.mid());
+        c->response.set_mid(msg->request.mid());
+        c->response.set_name(NOTIFY_MSG_CMD);
+        c->response.set_allocated_content(&(msg->data));
+        ret = protocol->encode(c->response, c->writer);
         if (0 != ret) {
             LOG_ERROR << "send msg: encode msg error, conn_id["
                 << conn_id << "] client_id[" << c->id << "]mid[" 
                 << msg->request.mid() << "]"; 
             ++failed;
+            c->response.release_content();
             continue;
         }
-        ret = anetWrite(c->fd, (char*)(c->output_buf.c_str()), c->output_buf.size());
-        if (ret != c->output_buf.size()) {
+        ret = c->writer->nonblock_write(false);
+        if (ret != SocketWriter::kOk) {
             LOG_ERROR << "send msg: write msg error, ret[" 
                 << ret << "] errno[" << errno << "] conn_id["
                 << c->conn_id << "] id[" << c->id << "]";
             ++failed;
             free_client(c, ERROR);
+            c->response.release_content();
             continue;
         }
+        c->response.release_content();
         ++success;
         LOG_INFO << "send msg: finish, conn_id["
             << conn_id << "] mid[" << msg->request.mid() << "]";

@@ -1,62 +1,67 @@
 #include "protocol.h"
 #include <arpa/inet.h>
 #include "common.h"
+#include "buffer.h"
 
 namespace im {
 
-int Protocol::encode(const std::string& name,
-                     const std::string& content,
-                     std::string* buf, 
-                     uint64_t id) {
-    _encode_msg.Clear();
-    _encode_msg.set_mid(id);
-    _encode_msg.set_name(name);
-    _encode_msg.set_content(content);
-    int proto_size = _encode_msg.ByteSize();
-    message_header_t header;
-    header.version = kVersion;
-    header.proto_size = htonl(proto_size);
-    int old_size = buf->size();
-    int new_size = buf->size() + sizeof(message_header_t) + proto_size; 
-    buf->reserve(new_size);
-    buf->append((char*)(&header), sizeof(header));
-    buf->resize(new_size);
-    if(!_encode_msg.SerializeToArray(
-                (char*)(buf->c_str() + old_size + sizeof(header)),
-                proto_size)) {
-        return 1;
+int Version_1_Protocol::encode(const im::Msg& response,
+                               SocketWriter* writer) {
+    int proto_size = response.ByteSize();
+    message_header_t resp_header;
+    resp_header.version = get_version();
+    resp_header.magic_num = htonl(kMagicNum);
+    resp_header.proto_size = htonl(proto_size);
+    writer->add_data((char*)(&resp_header), sizeof(resp_header));
+    if(writer->add_proto(response)) {
+        return kError; 
     }
-    return 0;
+    return kOk;
 }
 
-int Protocol::decode(const char* input, int size, message_t* message) {
-    if (size < sizeof(message_header_t)) {
-        return -1; 
+int Version_1_Protocol::decode(const message_header_t& header, 
+                               SocketReader* reader, 
+                               im::Msg* msg) {
+    char* p = NULL;
+    if (!reader->consume(header.proto_size, &p)) {
+        return kNotReady; 
     }
-    const char* p = input;
-    message_header_t* header = (message_header_t*)p;
-    header->proto_size = ntohl(header->proto_size);
-    LOG_DEBUG << "decode: package size[" << size 
-        << "] version[" << (int)header->version
-        << "] proto_size[" << header->proto_size << "]";
-    if (header->version != kVersion) {
-        return -2; 
+    msg->Clear();
+    if (!msg->ParseFromArray(p, header.proto_size)) {
+        return kError;
     }
-    int total_size = sizeof(message_header_t) + header->proto_size;
-    if (size < total_size) {
-        return -3; 
+    return kOk;
+}
+
+std::unordered_map<int, Protocol*> Protocol::_s_protocol_map; 
+
+Protocol* Protocol::get_protocol(char version) {
+    auto ite = _s_protocol_map.find(version);
+    return ite == _s_protocol_map.end() ? NULL : ite->second;
+}
+
+void Protocol::init() {
+#define ADD_PROTOCOL(name) do { \
+    Protocol* p = new name (); \
+    _s_protocol_map[p->get_version()] = p; \
+} while (0);
+    ADD_PROTOCOL(Version_1_Protocol);
+}
+
+int Protocol::read_header(SocketReader* reader, 
+                          message_header_t* header) {
+    message_header_t* h = NULL;
+    if (!reader->consume(sizeof(*h), (char**)(&h))) {
+        return kNotReady;
     }
-    p += sizeof(message_header_t);
-    _decode_msg.Clear();
-    if (!_decode_msg.ParseFromArray(p, header->proto_size)) {
-        return -4;
+    header->version = h->version;
+    header->magic_num = ntohl(h->magic_num);
+    header->proto_size = ntohl(h->proto_size);
+    if (header->magic_num != kMagicNum) {
+        LOG_ERROR<<"magic num not right";
+        return kError; 
     }
-    message->version = header->version;
-    message->id = _decode_msg.mid();
-    message->method = _decode_msg.name().c_str();
-    message->req_proto_size = _decode_msg.content().size();
-    message->req_proto = _decode_msg.content().c_str();
-    return total_size;
+    return kOk;
 }
 
 }

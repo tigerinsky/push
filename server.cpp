@@ -9,6 +9,7 @@
 #include "service.h"
 #include "flag.h"
 #include "offhub/offhub_proxy.h"
+#include "buffer.h"
 #ifdef _USE_PROF
 #include "gperftools/profiler.h"
 #endif
@@ -53,13 +54,23 @@ void init_server() {
     init_service();
 }
 
-client_t* create_client() {
+client_t* create_client(int fd) {
     client_t* c = new(std::nothrow) client_t;
     if (NULL == c) {
         return NULL; 
     }
     c->id = g_server.next_client_id++;
-    c->fd = -1;
+    c->fd = fd;
+    c->reader = new(std::nothrow) SocketReader(kProtoIOBufLen, fd);
+    if (NULL == c->reader) {
+        delete c;
+        return NULL; 
+    }
+    c->writer = new(std::nothrow) SocketWriter(fd);
+    if (NULL == c->writer) {
+        delete c; 
+        return NULL;
+    }
     return c;
 }
 
@@ -93,63 +104,46 @@ void free_client(client_t* c, Status status) {
 
 static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask) {
     client_t* c = (client_t*)data;
-    int ret = -1;
-    int nwrite = 0;
-    while (true) {
-        ret = write(fd, 
-                    c->output_buf.c_str() + nwrite, 
-                    c->output_buf.size() - nwrite); 
-        if (ret < 0) {
-            if (EAGAIN == errno) {
-                return;  
-            } else {
-                LOG_ERROR << "write response error, conn_id["
-                    << c->conn_id << "] client_id[" << c->id << "]";
-                if (NONE_PERSIST == c->status) {
-                    free_client(c);
-                } else {
-                    free_client(c, ERROR);
-                }
-                return;
-            }
+    switch (c->writer->nonblock_write(true)) {
+    case SocketWriter::kOk: 
+        if (NONE_PERSIST == c->status) {
+            free_client(c); 
+        } else {
+            aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
         }
-        nwrite += ret;
-        if (nwrite == c->output_buf.size()) {
-            break; 
+        break;
+    case SocketWriter::kLeftSome:
+        return;
+    case SocketWriter::kError:
+        if (NONE_PERSIST == c->status) {
+            free_client(c); 
+        } else {
+            free_client(c, ERROR); 
         }
-    }
-    c->output_buf.clear();
-    aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
-    if (NONE_PERSIST == c->status) {
-        free_client(c); 
+        return;
+    default:
+        // not suppose to enter here
+        return;
     }
 }
 
 static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
     client_t* c = (client_t*)data;
-    int ret = read(fd, c->input_buf, kProtoIOBufLen);
-    if (0 == ret) {
+    int ret = c->reader->nonblock_read();
+    if (SocketReader::kPeerClosed == ret) {
         LOG_INFO << "client close connect, conn_id[" << c->conn_id << "] client_id["
                 << c->id << "]";
         free_client(c, ERROR);
         return;
-    } else if (ret < 0) {
-        if (EAGAIN == errno) {
-            return; 
-        } else {
-            LOG_ERROR << "client read error, conn_id[" << c->conn_id << "] client_id["
-                << c->id << "]";
-            free_client(c, ERROR);
-            return; 
-        }
     }
-    c->input_size = ret;
-    ret = service(c);
-    if (0 != ret) {
-   //     free_client(c, ERROR); 
-   //     return;
+    if (SocketReader::kError == ret) {
+        LOG_ERROR << "client read error, conn_id[" << c->conn_id << "] client_id["
+        << c->id << "]";
+        free_client(c, ERROR);
+        return; 
     }
-    if (c->output_buf.size() > 0) {
+    service(c);
+    if (c->writer->has_data()) {
         if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
             free_client(c, ERROR);
         }
@@ -172,12 +166,12 @@ static void conn_handler(aeEventLoop* loop, int fd, void* data, int mask) {
             }
             return;
         }
-        client_t* c = create_client();
+        client_t* c = create_client(cfd);
         if (NULL == c) {
             close(cfd); 
             return;
         }
-        c->fd = cfd;
+        memcpy(c->ip, cip, sizeof(cip));
         anetNonBlock(NULL, cfd);
         anetEnableTcpNoDelay(NULL, cfd); 
         //anetKeepAlive(NULL,fd,1000); 

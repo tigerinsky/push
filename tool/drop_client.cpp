@@ -27,13 +27,14 @@ int main (int argc , char** argv) {
         LOG_WARN << "send reconn request error"; 
         return 1;
     }
-    message_t msg;
+    Msg msg;
     if (receive(fd, &msg)) {
         LOG_WARN << "read response error"; 
         return 1;
     }
     router::DropConnectResponse response;
-    if (!response.ParseFromArray(msg.req_proto, msg.req_proto_size)) {
+    if (!response.ParseFromArray(msg.content().c_str(), 
+                                 msg.content().size())) {
         LOG_WARN << "parse response errro";
         return 1;
     }

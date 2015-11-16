@@ -45,14 +45,15 @@ int main (int argc, char** argv) {
     }
     LOG_INFO << "send message, id["<<FLAGS_mid<<"] msg["
         <<FLAGS_msg<<"] to["<<FLAGS_to<<"]";
-    message_t resp_msg;
+    Msg resp_msg;
     ret = receive(fd, &resp_msg);
     if (ret) {
         LOG_ERROR << "read reasponse from server error"; 
         return 1;
     }
     push::SendMessageResponse response;
-    if (!response.ParseFromArray(resp_msg.req_proto, resp_msg.req_proto_size)) {
+    if (!response.ParseFromArray(resp_msg.content().c_str(), 
+                                 resp_msg.content().size())) {
         LOG_ERROR << "parse response error";    
         return 1;
     }
