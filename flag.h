@@ -13,6 +13,7 @@ DECLARE_bool(enable_conn_notify);
 DECLARE_bool(enable_token_verify);
 DECLARE_bool(enable_sign_verify);
 DECLARE_bool(enable_profiling);
+DECLARE_string(white_list_conf);
 
 }
 

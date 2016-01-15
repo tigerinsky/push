@@ -2,6 +2,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unordered_map>
+#include <fstream>
 #include "server.h"
 #include "handler/handler.h"
 #include "protocol.h"
@@ -25,6 +26,22 @@ typedef struct handler_t {
 
 std::unordered_map<std::string, handler_t*> g_handler_map;
 
+void load_white_list(const char* path) {
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        LOG_ERROR << "open white list conf file error: " << path; 
+        return;
+    }
+    std::string line;
+    while (getline(ifs, line)) {
+        if (line.size() > 0 && line[0] != '#') {
+            LOG_INFO << "load white list:" << line;
+            g_server.white_list.insert(line);
+        }
+    }
+    ifs.close();
+}
+
 void init_service() {
 #define ADD_HANDLER(name, handler) do { \
     g_handler_map[name]  = new handler_t(name, new handler()); \
@@ -35,6 +52,9 @@ void init_service() {
     ADD_HANDLER(SEND_MSG_CMD, SendMessageHandler);
     ADD_HANDLER(DROP_CONN_CMD, DropConnectHandler);
     Protocol::init();
+    if (FLAGS_white_list_conf.size() > 0) {
+        load_white_list(FLAGS_white_list_conf.c_str()); 
+    }
 }
 
 int service2(client_t* c) {
@@ -70,6 +90,7 @@ void service(client_t* c) {
                 }
                 return;
             }
+            LOG_DEBUG << "proto size[" << c->header.proto_size << "]";
             c->protocol = Protocol::get_protocol(c->header.version);
             if (NULL == c->protocol) {
                 LOG_ERROR << "service: get protocol error, version["
@@ -83,6 +104,7 @@ void service(client_t* c) {
                                   c->reader,
                                   &(c->request));
         if (Protocol::kNotReady == ret) {
+            LOG_DEBUG << "protocol decode not ready";
             break;
         } else if (Protocol::kError == ret) {
             LOG_ERROR << "service: decode error, conn_id["

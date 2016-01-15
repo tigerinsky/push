@@ -2,6 +2,7 @@
 #define PUSH_SERVER_H
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <queue>
 #include "common.h"
@@ -44,6 +45,7 @@ typedef struct client_t {
     im::Msg response;
     long last_active_time;
     Status status;
+    bool in_white_list;
 
     client_t() {
         id = 0;
@@ -54,6 +56,7 @@ typedef struct client_t {
         last_active_time = 0;
         reader = NULL;
         writer = NULL;
+        in_white_list = false;
     }
 
     ~client_t() {
@@ -94,6 +97,7 @@ typedef struct server_t {
     std::queue<push_msg_t*> msg_queue;
     char err_msg[1024];
     uint32_t next_client_id;
+    std::unordered_set<std::string> white_list;
 
     server_t() {
         stop = false;

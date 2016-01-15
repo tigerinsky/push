@@ -57,6 +57,7 @@ int Protocol::read_header(SocketReader* reader,
     header->version = h->version;
     header->magic_num = ntohl(h->magic_num);
     header->proto_size = ntohl(h->proto_size);
+    LOG_DEBUG<< "version[" << (int)header->version << "] magic_num[" << header->magic_num << "] proto_size[" << header->proto_size << "]";
     if (header->magic_num != kMagicNum) {
         LOG_ERROR<<"magic num not right";
         return kError; 

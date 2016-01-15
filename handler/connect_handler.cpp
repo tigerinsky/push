@@ -3,6 +3,7 @@
 #include "connect.pb.h"
 #include "common.h"
 #include "flag.h"
+#include "server.h"
 #include "offhub/offhub_proxy.h"
 #include "push_declare.h"
 
@@ -83,24 +84,27 @@ void ConnectHandler::handle(client_t* c) {
         c->conn_id = strtoull(request.conn_id().c_str(), NULL, 10);
         c->status = PERSIST;
         auto ite = g_server.client_map.find(c->conn_id);
-        if (ite != g_server.client_map.end()
-                && ite->second->id == c->id) {
-            response.set_err_code(OK);
-        } else {
-            g_server.client_map[c->conn_id] = c;
-            client_node_t* new_node 
-                = new client_node_t(c, g_server.client_list.next);
-            g_server.client_list.next = new_node;
-            ++g_server.client_num;
-            response.set_err_code(OK);
-            LOG_INFO << "new connect: conn_id[" << request.conn_id()
-                << "] client_id[" << c->id << "] ip["
-                << c->ip <<"] token[" << request.token() 
-                << "] sign[" << request.sign() << "]";
-            STAT_COLLECT_COUNT(connect)
-            if (FLAGS_enable_conn_notify) {
-                g_offhub_proxy->conn_on_notify(c->conn_id);
+        if (ite != g_server.client_map.end()) {
+            if (ite->second->id == c->id) {
+                response.set_err_code(OK);
+                goto end;
+            } else {
+                free_client(ite->second, ERROR);    
             }
+        }
+        g_server.client_map[c->conn_id] = c;
+        client_node_t* new_node 
+            = new client_node_t(c, g_server.client_list.next);
+        g_server.client_list.next = new_node;
+        ++g_server.client_num;
+        response.set_err_code(OK);
+        LOG_INFO << "new connect: conn_id[" << request.conn_id()
+            << "] client_id[" << c->id << "] ip["
+            << c->ip <<"] token[" << request.token() 
+            << "] sign[" << request.sign() << "]";
+        STAT_COLLECT_COUNT(connect)
+        if (FLAGS_enable_conn_notify) {
+            g_offhub_proxy->conn_on_notify(c->conn_id);
         }
     } else {
         LOG_WARN << "make connect failed: conn_id[" << request.conn_id()

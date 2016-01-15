@@ -27,6 +27,10 @@ static void try_stop() {
     exit(0);
 }
 
+static inline bool can_shutdown(client_t* c) {
+    return c->status == NONE_PERSIST && !(c->in_white_list);
+}
+
 static int server_cron(aeEventLoop* loop, long long id, void* data) {
     if (g_server.stop) {
         try_stop(); 
@@ -106,7 +110,7 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
     client_t* c = (client_t*)data;
     switch (c->writer->nonblock_write(true)) {
     case SocketWriter::kOk: 
-        if (NONE_PERSIST == c->status) {
+        if (can_shutdown(c)) {
             free_client(c); 
         } else {
             aeDeleteFileEvent(g_server.loop, c->fd, AE_WRITABLE);
@@ -115,7 +119,7 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
     case SocketWriter::kLeftSome:
         return;
     case SocketWriter::kError:
-        if (NONE_PERSIST == c->status) {
+        if (can_shutdown(c)) {
             free_client(c); 
         } else {
             free_client(c, ERROR); 
@@ -130,6 +134,7 @@ static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask
 static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
     client_t* c = (client_t*)data;
     int ret = c->reader->nonblock_read();
+    LOG_INFO << "debug ret[" << ret << "]";
     if (SocketReader::kPeerClosed == ret) {
         LOG_INFO << "client close connect, conn_id[" << c->conn_id << "] client_id["
                 << c->id << "]";
@@ -148,7 +153,7 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
             free_client(c, ERROR);
         }
     } else {
-        if (NONE_PERSIST == c->status) {
+        if (can_shutdown(c)) {
             free_client(c); 
         } 
     }
@@ -171,7 +176,11 @@ static void conn_handler(aeEventLoop* loop, int fd, void* data, int mask) {
             close(cfd); 
             return;
         }
+        LOG_DEBUG << cip;
         memcpy(c->ip, cip, sizeof(cip));
+        if (g_server.white_list.find(cip) != g_server.white_list.end()) {
+            c->in_white_list = true; 
+        }
         anetNonBlock(NULL, cfd);
         anetEnableTcpNoDelay(NULL, cfd); 
         //anetKeepAlive(NULL,fd,1000); 

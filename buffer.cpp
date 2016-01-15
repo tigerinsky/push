@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include "google/protobuf/message.h"
+#include "common.h"
 
 namespace im {
 
@@ -35,6 +36,7 @@ int SocketReader::nonblock_read() {
         }
     }
     _data_size += ret;
+    LOG_DEBUG << "in nonblock_read ret[" << ret << "] _data_size[" << _data_size << "]";
     if (_garbage_size > 0) {
         if (_garbage_size > _data_size) {
             _data_size = 0; 
@@ -49,6 +51,7 @@ int SocketReader::nonblock_read() {
 }
 
 bool SocketReader::consume(int size, char** p) {
+    LOG_DEBUG << "_data_size[" << _data_size << "] _consume_size[" << _consume_size << "] size[" << size << "]";
     if (_data_size - _consume_size < size) {
         return false; 
     }
@@ -93,6 +96,7 @@ int SocketWriter::nonblock_write(bool flush) {
         ret = write(_fd, 
                     _buf.c_str() + _has_write, 
                     _buf.size() - _has_write); 
+        LOG_DEBUG << "write:" + ret;
         if (ret < 0) {
             if (EAGAIN == errno) {
                 if (flush) {

@@ -14,6 +14,7 @@ DEFINE_bool(enable_conn_notify, true, "whether notify offhub for conn notify");
 DEFINE_bool(enable_token_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_sign_verify, true, "whether turn on token verify");
 DEFINE_bool(enable_profiling, false, "whether turn on profiling");
+DEFINE_string(white_list_conf, "", "white list conf file");
 
 }
 
