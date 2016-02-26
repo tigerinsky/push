@@ -19,7 +19,7 @@ static void client_reconn(client_t* c) {
     c->response.set_content(buf);
     Protocol* protocol = Protocol::get_protocol(1);
     protocol->encode(c->response, c->writer);
-    c->writer->nonblock_write(true);
+    c->writer->write(10);
     free_client(c);
 }
 

@@ -22,8 +22,13 @@ SocketReader::~SocketReader() {
 
 int SocketReader::nonblock_read() {
     if (_data_size >= _buf_capacity) {
-        return kBufferOverflow; 
+        char* new_buf = (char*)malloc(_buf_capacity * 2);
+        memcpy(new_buf, _buf, _buf_capacity);
+        free(_buf);
+        _buf = new_buf;
+        _buf_capacity *= 2;
     }
+    LOG_DEBUG << "try to read " << _buf_capacity - _data_size;
     int ret = read(_fd, _buf + _data_size, _buf_capacity - _data_size); 
     if (0 == ret) {
         return kPeerClosed; 
@@ -87,35 +92,51 @@ SocketWriter::SocketWriter(int fd) {
 
 SocketWriter::~SocketWriter() {}
 
-int SocketWriter::nonblock_write(bool flush) {
+int SocketWriter::nonblock_write() {
     int ret = -1;
     if (_buf.size() <= _has_write) {
-        return kOk; 
+        return kError; 
     } 
+    LOG_INFO << "writer: start write, left" << left();
+    int write_total = 0;
     while (true) {
-        ret = write(_fd, 
-                    _buf.c_str() + _has_write, 
-                    _buf.size() - _has_write); 
-        LOG_DEBUG << "write:" + ret;
+        ret = ::write(_fd, 
+                      _buf.c_str() + _has_write, 
+                      _buf.size() - _has_write); 
         if (ret < 0) {
             if (EAGAIN == errno) {
-                if (flush) {
-                    continue;
-                } else {
-                    return kOk; 
-                }
+                return kLeftSome;
             } else {
                 return kError;
             }
         }
         _has_write += ret;
+        write_total += ret;
         if (_has_write == _buf.size()) {
             break; 
+        }
+        if (write_total > kMaxWriteSizeOnce) {
+            return kLeftSome; 
         }
     }
     _has_write = 0;
     _buf.clear();
-    return 0;
+    return kOk;
+}
+
+int SocketWriter::write(uint32_t timeout) {
+    run_within_time (timeout) {
+        switch (nonblock_write()) {
+        case SocketWriter::kOk: 
+            return kOk;
+        case SocketWriter::kLeftSome:     
+            continue;
+        case SocketWriter::kError:
+        default:
+            return kError;
+        }
+    }
+    return kLeftSome;
 }
 
 void SocketWriter::add_data(void* data, int len) {

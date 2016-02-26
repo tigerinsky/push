@@ -46,6 +46,7 @@ typedef struct client_t {
     long last_active_time;
     Status status;
     bool in_white_list;
+    int left_msg_num;
 
     client_t() {
         id = 0;
@@ -57,6 +58,7 @@ typedef struct client_t {
         reader = NULL;
         writer = NULL;
         in_white_list = false;
+        left_msg_num = 0;
     }
 
     ~client_t() {
@@ -116,6 +118,7 @@ void stop_server();
 client_t* create_client();
 void free_client(client_t* c, Status status=STATUS_END);
 void get_server_info(std::string* info);
+void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask);
 
 }
 

@@ -16,7 +16,7 @@ public:
     static const int kOk = 0;
     static const int kPeerClosed = 1;
     static const int kError = 2;
-    static const int kBufferOverflow = 3;
+//    static const int kBufferOverflow = 3;
 
 public:
     SocketReader(int buf_size, int fd);
@@ -43,13 +43,15 @@ public:
     static const int kOk = 0;
     static const int kError = 1;
     static const int kLeftSome = 2;
+    static const int kMaxWriteSizeOnce = 40960;
 
 public:
     explicit SocketWriter(int fd);
     virtual ~SocketWriter();
 
 public:
-    int nonblock_write(bool flush); 
+    int nonblock_write(); 
+    int write(uint32_t timeout_ms);
     void add_data(void* data, int len); 
     int add_proto(const ::google::protobuf::Message& proto);
     bool has_data() {

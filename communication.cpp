@@ -24,12 +24,11 @@ int send(int fd,
             << name << "] data[" << message.DebugString()<< "]";
         return 1;
     }
-    assert(0 == writer.nonblock_write(true));
-    return 0;
+    return writer.write(1000) == SocketWriter::kOk ? 0 : -1;
 }
 
 int receive(int fd, Msg* msg) {
-    char buf[102400];
+    char buf[1024000];
     int ret = -1;
     message_header_t* header = (message_header_t*)buf;
     ret = read(fd, buf, sizeof(*header));
@@ -43,10 +42,14 @@ int receive(int fd, Msg* msg) {
         return 1;
     }
     int size  = ntohl(header->proto_size);
-    ret = read(fd, buf + sizeof(*header), size);
-    if (ret != size) {
-        LOG_WARN << "read data error, ret["<<ret<<"] errno["<<errno<<"]";
-        return 1;
+    int has_read = 0;
+    while (has_read != size) {
+        ret = read(fd, buf + sizeof(*header) + has_read, size - has_read);
+        if (ret <= 0) {
+            LOG_WARN << "read data error, ret["<<ret<<"] errno["<<errno<<"]";
+            return 1;
+        }
+        has_read += ret;
     }
     if (!msg->ParseFromArray(buf + sizeof(*header), size)) {
         LOG_WARN << "decode message error, ret["<<ret<<"]";

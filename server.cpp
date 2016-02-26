@@ -106,10 +106,16 @@ void free_client(client_t* c, Status status) {
     }
 }
 
-static void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask) {
+void send_reply_to_client(aeEventLoop* loop, int fd, void *data, int mask) {
     client_t* c = (client_t*)data;
-    switch (c->writer->nonblock_write(true)) {
+    switch (c->writer->nonblock_write()) {
     case SocketWriter::kOk: 
+        if (0 != c->left_msg_num) {
+            LOG_INFO << "finish push all msg: num"
+                << c->left_msg_num << ", conn_id "
+                << c->conn_id;
+            c->left_msg_num = 0; 
+        }
         if (can_shutdown(c)) {
             free_client(c); 
         } else {
@@ -148,7 +154,8 @@ static void request_handler(aeEventLoop* loop, int fd, void* data, int mask) {
         return; 
     }
     service(c);
-    if (c->writer->has_data()) {
+    if (!(aeGetFileEvents(g_server.loop, c->fd) & AE_WRITABLE)
+            && c->writer->has_data()) {
         if (aeCreateFileEvent(loop, fd, AE_WRITABLE, send_reply_to_client, c) == AE_ERR) {
             free_client(c, ERROR);
         }

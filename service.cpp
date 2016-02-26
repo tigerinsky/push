@@ -8,6 +8,7 @@
 #include "protocol.h"
 #include "common.h"
 #include "ae/anet.h"
+#include "ae/ae.h"
 #include "offhub/offhub_proxy.h"
 #include "flag.h"
 #include "push_declare.h"
@@ -248,21 +249,25 @@ void send_message() {
             c->response.release_content();
             continue;
         }
-        LOG_DEBUG << "left:" << c->writer->left();
-        ret = c->writer->nonblock_write(true);
-        LOG_DEBUG << "left2:" << c->writer->left();
-        if (ret != SocketWriter::kOk) {
-            LOG_ERROR << "send msg: write msg error, ret[" 
-                << ret << "] errno[" << errno << "] conn_id["
-                << c->conn_id << "] id[" << c->id << "]";
-            ++failed;
-            free_client(c, ERROR);
-            c->response.release_content();
-            continue;
-        }
+        if (!(aeGetFileEvents(g_server.loop, c->fd) & AE_WRITABLE)) {
+            if (AE_ERR == aeCreateFileEvent(g_server.loop, 
+                                            c->fd, 
+                                            AE_WRITABLE, 
+                                            send_reply_to_client, 
+                                            c)) {
+                ++failed;
+                free_client(c, ERROR);
+                c->response.release_content();
+                LOG_ERROR << "send msg: create write event error, errno["
+                    << errno << "] conn_id[" << c->conn_id << "] id["
+                    << c->id << "]";
+                continue;
+           }
+        } 
         c->response.release_content();
+        ++c->left_msg_num; 
         ++success;
-        LOG_INFO << "send msg: finish, conn_id["
+        LOG_INFO << "send msg: move msg to buffer, conn_id["
             << conn_id << "] mid[" << msg->request.mid() << "]";
     }
 end:
